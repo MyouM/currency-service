@@ -2,10 +2,13 @@ package main
 
 import (
 	"currency-service/internal/config"
-	currency "currency-service/internal/handler"
+	"currency-service/internal/db"
+	"currency-service/internal/handler"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 )
 
 func main() {
@@ -18,10 +21,10 @@ func main() {
 		log.Fatalf("error loading config: %v", err)
 	}
 
-	/*db, err := db.NewDatabaseConnection(cfg.Database)
+	db, _, err := db.NewDatabaseConnection(cfg.Database)
 	if err != nil {
 		log.Fatalf("error init database connection: %v", err)
-	}*/
+	}
 
 	router := http.NewServeMux()
 
@@ -35,13 +38,43 @@ func main() {
 		log.Fatalf("error init logger: %v", err)
 	}*/
 
-	currency.CurrencyHandlerInit(router, &cfg)
+	timeChan := make(chan struct{})
+	defer close(timeChan)
+	go func() {
+		timeChan <- struct{}{}
+		for {
+			time.Sleep(time.Hour * 24)
+			timeChan <- struct{}{}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-timeChan:
+				rateResponse, err := handler.GetBodyUrl(&cfg)
+				if err != nil {
+					fmt.Println(err)
+					break
+				}
+				ratesJson, _ := json.Marshal(rateResponse.Rub)
+				_, err = db.Exec(`INSERT INTO currency (date, currency_rates)
+						VALUES ($1, $2)`, rateResponse.Date,
+					ratesJson)
+				if err != nil {
+					fmt.Println(err)
+					break
+				}
+			}
+		}
+	}()
+
+	handler.CurrencyHandlerInit(router, &cfg, db)
 
 	server := http.Server{
 		Addr:    ":8081",
 		Handler: router,
 	}
-	fmt.Println("Server is listening on port 8081")
 	server.ListenAndServe()
 
 }

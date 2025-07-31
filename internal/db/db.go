@@ -4,6 +4,8 @@ import (
 	"currency-service/internal/config"
 	"database/sql"
 	"fmt"
+
+	_ "github.com/lib/pq"
 )
 
 func NewDatabaseConnection(cfg config.DatabaseConfig) (*sql.DB, string, error) {
