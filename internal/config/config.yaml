@@ -8,5 +8,6 @@ database:
   password: "password"
   name: "currency_db"
 
-currency_url:
+currency:
   url: "http://latest.currency-api.pages.dev/v1/currencies/rub.json"
+  target: "usd"

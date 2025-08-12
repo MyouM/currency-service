@@ -2,40 +2,41 @@ package main
 
 import (
 	"currency-service/internal/config"
-	"currency-service/internal/db"
+	handler "currency-service/internal/handler/gateway"
+	"currency-service/internal/proto/currpb"
+	"fmt"
 	"log"
 	"net/http"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
-	//configPath := flag.String("config", "./config", "path to the config file")
-	//flag.Parse()
-
-	//cfg, err := config.LoadConfig(*configPath)
 	cfg, err := config.LoadConfig("./internal/config/config.yaml")
 	if err != nil {
 		log.Fatalf("error loading config: %v", err)
 	}
 
-	db, err := db.NewDatabaseConnection(cfg.Database)
+	conn, err := grpc.Dial("localhost:8081",
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatalf("error init database connection: %v", err)
+		log.Fatalf("error grpc dial: %v", err)
 	}
+	defer conn.Close()
+
+	client := currpb.NewCurrencyServiceClient(conn)
 
 	router := http.NewServeMux()
-
-	/*repo, err := repository.NewCurrency(db)
-	if err != nil {
-		log.Fatalf("error creating repository: %v", err)
-	}*/
 
 	/*logger, err := zap.NewProduction(db)
 	if err != nil {
 		log.Fatalf("error init logger: %v", err)
 	}*/
 
-	//handler.GatewayHandlerInit(router, &cfg, &db)
+	handler.GatewayHandlersInit(router, &cfg, client)
 
+	fmt.Println("Server running on port 8082...")
 	server := http.Server{
 		Addr:    ":8082",
 		Handler: router,

@@ -10,8 +10,9 @@ type ServiceConfig struct {
 	ServerPort string `mapstructure:"server_port"`
 }
 
-type CurrencyURL struct {
-	URL string `mapstructure:"url"`
+type CurrencyInfo struct {
+	URL    string `mapstructure:"url"`
+	Target string `mapstructure:"target"`
 }
 
 type DatabaseConfig struct {
@@ -26,7 +27,7 @@ type DatabaseConfig struct {
 type AppConfig struct {
 	Service  ServiceConfig  `mapstructure:"service"`
 	Database DatabaseConfig `mapstructure:"database"`
-	URL      CurrencyURL    `mapstructure:"currency_url"`
+	Currency CurrencyInfo   `mapstructure:"currency"`
 }
 
 func LoadConfig(path string) (AppConfig, error) {

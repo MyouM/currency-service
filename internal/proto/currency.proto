@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package currpb;
+
+option go_package = "proto/currpb";
+
+message ClientSpecRequest {
+	string date = 1;
+}
+
+message ClientSpecResponse {
+	double currency = 1;
+}
+
+message ClientIntervalRequest {
+	string data_begin = 1;
+	string data_end = 2;
+}
+
+message CurrencyRates {
+	string date = 1;
+	double rate = 2;
+}
+
+message ClientIntervalResponse {
+	repeated CurrencyRates rates = 1;
+}
+	
+
+service CurrencyService {
+	rpc GetSpecificCurrency(ClientSpecRequest) returns (ClientSpecResponse);
+	rpc GetIntervalCurrency(ClientIntervalRequest) returns (ClientIntervalResponse);
+}
