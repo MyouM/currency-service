@@ -32,6 +32,6 @@ func GetOneCurrencyRate(grpcClient currpb.CurrencyServiceClient) http.HandlerFun
 			return
 		}
 
-		fmt.Fprintf(w, "OK: %s\n", resp.GetCurrency())
+		fmt.Fprintf(w, "OK: %v\n", resp.GetCurrency())
 	}
 }

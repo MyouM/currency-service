@@ -2,6 +2,7 @@ package worker
 
 import (
 	"currency-service/internal/config"
+	"currency-service/internal/db"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -15,7 +16,7 @@ type RatesResponse struct {
 	Rub  map[string]float64 `json:"rub"`
 }
 
-func CurrencyWorker(cfg *config.AppConfig, db *sql.DB) {
+func CurrencyWorker(cfg *config.AppConfig, DB *sql.DB) {
 	timeChan := make(chan struct{})
 	defer close(timeChan)
 	go func() {
@@ -34,7 +35,7 @@ func CurrencyWorker(cfg *config.AppConfig, db *sql.DB) {
 				break
 			}
 
-			curRate, ok := rateResponse.Rub[cfg.Currency.Target]
+			currRate, ok := rateResponse.Rub[cfg.Currency.Target]
 			if !ok {
 				fmt.Println("Target currency is not in response")
 				break
@@ -46,13 +47,10 @@ func CurrencyWorker(cfg *config.AppConfig, db *sql.DB) {
 				break
 			}
 
-			_, err = db.Exec(`INSERT INTO exchange_rates 
-					(date, target_currency, currency_rates) 
-					VALUES ($1, $2, $3)`,
+			err = db.AddWorkerInfo(DB,
 				rateDate,
 				cfg.Currency.Target,
-				curRate,
-			)
+				currRate)
 			if err != nil {
 				fmt.Println(err)
 				break
