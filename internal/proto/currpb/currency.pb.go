@@ -111,8 +111,8 @@ func (x *ClientSpecResponse) GetCurrency() float64 {
 
 type ClientIntervalRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	DataBegin     string                 `protobuf:"bytes,1,opt,name=data_begin,json=dataBegin,proto3" json:"data_begin,omitempty"`
-	DataEnd       string                 `protobuf:"bytes,2,opt,name=data_end,json=dataEnd,proto3" json:"data_end,omitempty"`
+	DateBegin     string                 `protobuf:"bytes,1,opt,name=date_begin,json=dateBegin,proto3" json:"date_begin,omitempty"`
+	DateEnd       string                 `protobuf:"bytes,2,opt,name=date_end,json=dateEnd,proto3" json:"date_end,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -147,16 +147,16 @@ func (*ClientIntervalRequest) Descriptor() ([]byte, []int) {
 	return file_currency_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *ClientIntervalRequest) GetDataBegin() string {
+func (x *ClientIntervalRequest) GetDateBegin() string {
 	if x != nil {
-		return x.DataBegin
+		return x.DateBegin
 	}
 	return ""
 }
 
-func (x *ClientIntervalRequest) GetDataEnd() string {
+func (x *ClientIntervalRequest) GetDateEnd() string {
 	if x != nil {
-		return x.DataEnd
+		return x.DateEnd
 	}
 	return ""
 }
@@ -268,8 +268,8 @@ const file_currency_proto_rawDesc = "" +
 	"\bcurrency\x18\x01 \x01(\x01R\bcurrency\"Q\n" +
 	"\x15ClientIntervalRequest\x12\x1d\n" +
 	"\n" +
-	"data_begin\x18\x01 \x01(\tR\tdataBegin\x12\x19\n" +
-	"\bdata_end\x18\x02 \x01(\tR\adataEnd\"7\n" +
+	"date_begin\x18\x01 \x01(\tR\tdateBegin\x12\x19\n" +
+	"\bdate_end\x18\x02 \x01(\tR\adateEnd\"7\n" +
 	"\rCurrencyRates\x12\x12\n" +
 	"\x04date\x18\x01 \x01(\tR\x04date\x12\x12\n" +
 	"\x04rate\x18\x02 \x01(\x01R\x04rate\"E\n" +

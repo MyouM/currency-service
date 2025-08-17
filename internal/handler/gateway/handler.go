@@ -3,30 +3,108 @@ package handler
 import (
 	"context"
 	"currency-service/internal/config"
+	middleware "currency-service/internal/middleware/auth"
 	"currency-service/internal/proto/currpb"
+	"currency-service/internal/repository"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
-func GatewayHandlersInit(router *http.ServeMux,
-	cfg *config.AppConfig,
-	grpcClient currpb.CurrencyServiceClient) {
-	router.HandleFunc("GET /currency/{date}", GetOneCurrencyRate(grpcClient))
+type UserInfo struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
-func GetOneCurrencyRate(grpcClient currpb.CurrencyServiceClient) http.HandlerFunc {
+func GatewayHandlersInit(
+	router *http.ServeMux,
+	cfg *config.AppConfig,
+	grpcClient currpb.CurrencyServiceClient) {
+
+	router.HandleFunc(
+		"GET /currency/one/{date}",
+		middleware.Validate(getOneCurrencyRate(grpcClient)))
+	router.HandleFunc(
+		"GET /currency/period/{dates}",
+		middleware.Validate(getIntervalCurrencyChanges(grpcClient)))
+	router.HandleFunc("POST /login", getToken)
+}
+
+func getToken(w http.ResponseWriter, req *http.Request) {
+	var user UserInfo
+	dec := json.NewDecoder(req.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&user); err != nil {
+		http.Error(
+			w,
+			fmt.Sprintf("Decode error: %v", err),
+			http.StatusBadRequest)
+		return
+	}
+	//Добавить проверки
+	claims := jwt.MapClaims{
+		"username": user.Username,
+		"password": user.Password,
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenStr, err := token.SignedString(repository.GetSecret())
+	if err != nil {
+		http.Error(
+			w,
+			fmt.Sprintf("JWT error: %v", err),
+			http.StatusBadRequest)
+		return
+	}
+	repository.AddToken(tokenStr)
+	fmt.Fprintf(w, "Token: %s", tokenStr)
+}
+
+func getIntervalCurrencyChanges(grpcClient currpb.CurrencyServiceClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		dts := req.PathValue("dates")
+		ctx, cancel := context.WithTimeout(req.Context(), 6*time.Second)
+		defer cancel()
+
+		dates := strings.Split(dts, "-")
+		resp, err := grpcClient.GetIntervalCurrency(
+			ctx,
+			&currpb.ClientIntervalRequest{
+				DateBegin: dates[0],
+				DateEnd:   dates[1],
+			})
+		if err != nil {
+			http.Error(
+				w,
+				fmt.Sprintf("gRPC error: %v", err),
+				http.StatusBadGateway)
+			return
+		}
+		currRates := resp.GetRates()
+		for _, rate := range currRates {
+			fmt.Fprintf(w, "%v, %v\n", rate.Date, rate.Rate)
+		}
+
+	}
+}
+
+func getOneCurrencyRate(grpcClient currpb.CurrencyServiceClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		date := req.PathValue("date")
 		ctx, cancel := context.WithTimeout(req.Context(), 6*time.Second)
 		defer cancel()
 
-		resp, err := grpcClient.GetSpecificCurrency(ctx,
+		resp, err := grpcClient.GetSpecificCurrency(
+			ctx,
 			&currpb.ClientSpecRequest{
 				Date: date,
 			})
 		if err != nil {
-			http.Error(w,
+			http.Error(
+				w,
 				fmt.Sprintf("gRPC error: %v", err),
 				http.StatusBadGateway)
 			return

@@ -13,8 +13,8 @@ message ClientSpecResponse {
 }
 
 message ClientIntervalRequest {
-	string data_begin = 1;
-	string data_end = 2;
+	string date_begin = 1;
+	string date_end = 2;
 }
 
 message CurrencyRates {

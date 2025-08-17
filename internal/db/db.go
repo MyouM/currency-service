@@ -2,12 +2,19 @@ package db
 
 import (
 	"currency-service/internal/config"
+	"currency-service/internal/proto/currpb"
 	"database/sql"
 	"fmt"
 	"time"
 
 	_ "github.com/lib/pq"
 )
+
+type CurrInfo struct {
+	date time.Time
+	rate float64
+	next *CurrInfo
+}
 
 func NewDatabaseConnection(cfg config.DatabaseConfig) (*sql.DB, string, error) {
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
@@ -22,6 +29,35 @@ func NewDatabaseConnection(cfg config.DatabaseConfig) (*sql.DB, string, error) {
 	}
 
 	return db, dsn, nil
+}
+
+func GetCurrencyChanges(DB *sql.DB, dateFrom, dateTo time.Time) ([]*currpb.CurrencyRates, error) {
+	currRates := make([]*currpb.CurrencyRates, 0, 2)
+	rows, err := DB.Query(
+		`SELECT DISTINCT date, currency_rate
+		FROM exchange_rates
+		WHERE date BETWEEN $1 AND $2`,
+		dateFrom,
+		dateTo)
+	if err != nil {
+		fmt.Println("Database error: ", err)
+		return currRates, err
+	}
+	defer rows.Close()
+
+	i := 0
+	for rows.Next() {
+		if err := rows.Scan(&currRates[i].Date, &currRates[i].Rate); err != nil {
+			fmt.Println("Database scan error: ", err)
+			return currRates, err
+		}
+		i++
+	}
+	if err = rows.Err(); err != nil {
+		fmt.Println("Database scan error: ", err)
+		return currRates, err
+	}
+	return currRates, nil
 }
 
 func GetOneCurrencyRate(DB *sql.DB, date time.Time) (float64, error) {
