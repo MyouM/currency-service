@@ -3,8 +3,8 @@ package main
 import (
 	"currency-service/internal/config"
 	handler "currency-service/internal/handler/gateway"
+	"currency-service/internal/logger"
 	"currency-service/internal/proto/currpb"
-	"fmt"
 	"log"
 	"net/http"
 
@@ -29,14 +29,12 @@ func main() {
 
 	router := http.NewServeMux()
 
-	/*logger, err := zap.NewProduction(db)
-	if err != nil {
-		log.Fatalf("error init logger: %v", err)
-	}*/
+	logger := logger.InitLogger()
+	defer logger.Sync()
 
 	handler.GatewayHandlersInit(router, &cfg, client)
 
-	fmt.Println("Server running on port 8082...")
+	logger.Info("Server running on port 8082...")
 	server := http.Server{
 		Addr:    ":8082",
 		Handler: router,

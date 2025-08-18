@@ -5,7 +5,6 @@ import (
 	"currency-service/internal/db"
 	"currency-service/internal/proto/currpb"
 	"database/sql"
-	"fmt"
 	"time"
 )
 
@@ -21,13 +20,11 @@ func (s *Server) GetSpecificCurrency(
 	strDate := req.GetDate()
 	date, err := time.Parse(time.DateOnly, strDate)
 	if err != nil {
-		fmt.Println("Wrong timestamp")
 		return &currpb.ClientSpecResponse{}, err
 	}
 
 	currRate, err := db.GetOneCurrencyRate(s.DB, date)
 	if err != nil {
-		fmt.Println("Database error")
 		return &currpb.ClientSpecResponse{}, err
 	}
 
@@ -43,19 +40,16 @@ func (s *Server) GetIntervalCurrency(
 
 	dateFrom, err := time.Parse(time.DateOnly, strBeginDate)
 	if err != nil {
-		fmt.Println("Wrong timestamp", strBeginDate)
 		return &currpb.ClientIntervalResponse{}, err
 	}
 
 	dateTo, err := time.Parse(time.DateOnly, strEndDate)
 	if err != nil {
-		fmt.Println("Wrong timestamp", strEndDate)
 		return &currpb.ClientIntervalResponse{}, err
 	}
 
 	currRates, err := db.GetCurrencyChanges(s.DB, dateFrom, dateTo)
 	if err != nil {
-		fmt.Println("Database error")
 		return &currpb.ClientIntervalResponse{}, err
 	}
 	return &currpb.ClientIntervalResponse{Rates: currRates}, nil

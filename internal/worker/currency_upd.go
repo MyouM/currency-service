@@ -3,12 +3,15 @@ package worker
 import (
 	"currency-service/internal/config"
 	"currency-service/internal/db"
+	"currency-service/internal/logger"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type RatesResponse struct {
@@ -17,6 +20,7 @@ type RatesResponse struct {
 }
 
 func CurrencyWorker(cfg *config.AppConfig, DB *sql.DB) {
+	logger := logger.GetLogger()
 	timeChan := make(chan struct{})
 	defer close(timeChan)
 	go func() {
@@ -31,19 +35,19 @@ func CurrencyWorker(cfg *config.AppConfig, DB *sql.DB) {
 		case <-timeChan:
 			rateResponse, err := getBodyUrl(cfg)
 			if err != nil {
-				fmt.Println(err)
+				logger.Error("failed to get url", zap.Error(err))
 				break
 			}
 
 			currRate, ok := rateResponse.Rub[cfg.Currency.Target]
 			if !ok {
-				fmt.Println("Target currency is not in response")
+				logger.Warn("Target currency is not in response")
 				break
 			}
 
 			rateDate, err := time.Parse(time.DateOnly, rateResponse.Date)
 			if err != nil {
-				fmt.Println("Incorrect date format")
+				logger.Warn("Incorrect date format")
 				break
 			}
 
@@ -52,9 +56,10 @@ func CurrencyWorker(cfg *config.AppConfig, DB *sql.DB) {
 				cfg.Currency.Target,
 				currRate)
 			if err != nil {
-				fmt.Println(err)
+				logger.Error("Database error", zap.Error(err))
 				break
 			}
+			logger.Info("Update currency")
 		}
 	}
 }
@@ -67,7 +72,6 @@ func getBodyUrl(cfg *config.AppConfig) (RatesResponse, error) {
 		cfg.Currency.URL,
 		nil)
 	if err != nil {
-		fmt.Println("failed to create request: ", err)
 		return rateResponse, err
 	}
 
@@ -78,7 +82,6 @@ func getBodyUrl(cfg *config.AppConfig) (RatesResponse, error) {
 	resp, err := client.Do(reqCurr)
 
 	if err != nil {
-		fmt.Println("failed to make API request: ", err)
 		return rateResponse, err
 	}
 
@@ -90,12 +93,10 @@ func getBodyUrl(cfg *config.AppConfig) (RatesResponse, error) {
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("failed to read response body: ", err)
 		return rateResponse, err
 	}
 
 	if err := json.Unmarshal(body, &rateResponse); err != nil {
-		fmt.Println("failed to unmarshal response body: ", err)
 		return rateResponse, err
 	}
 

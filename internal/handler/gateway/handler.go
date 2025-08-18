@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"currency-service/internal/config"
+	"currency-service/internal/logger"
 	middleware "currency-service/internal/middleware/auth"
 	"currency-service/internal/proto/currpb"
 	"currency-service/internal/repository"
@@ -13,12 +14,8 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"go.uber.org/zap"
 )
-
-type UserInfo struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
 
 func GatewayHandlersInit(
 	router *http.ServeMux,
@@ -31,11 +28,13 @@ func GatewayHandlersInit(
 	router.HandleFunc(
 		"GET /currency/period/{dates}",
 		middleware.Validate(getIntervalCurrencyChanges(grpcClient)))
-	router.HandleFunc("POST /login", getToken)
+	router.HandleFunc("POST /registration", registration)
 }
 
-func getToken(w http.ResponseWriter, req *http.Request) {
-	var user UserInfo
+func registration(w http.ResponseWriter, req *http.Request) {
+	var user repository.User
+	logger := logger.GetLogger()
+
 	dec := json.NewDecoder(req.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&user); err != nil {
@@ -45,9 +44,18 @@ func getToken(w http.ResponseWriter, req *http.Request) {
 			http.StatusBadRequest)
 		return
 	}
-	//Добавить проверки
+
+	if user.Exist() {
+		http.Error(
+			w,
+			fmt.Sprintf("User %v already exist", user.Login),
+			http.StatusBadRequest)
+		return
+	}
+	user.Add()
+
 	claims := jwt.MapClaims{
-		"username": user.Username,
+		"login":    user.Login,
 		"password": user.Password,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -60,6 +68,7 @@ func getToken(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	repository.AddToken(tokenStr)
+	logger.Info("New registration", zap.String("Login", user.Login))
 	fmt.Fprintf(w, "Token: %s", tokenStr)
 }
 

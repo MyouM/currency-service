@@ -4,9 +4,9 @@ import (
 	"currency-service/internal/config"
 	"currency-service/internal/db"
 	handler "currency-service/internal/handler/currency"
+	"currency-service/internal/logger"
 	"currency-service/internal/proto/currpb"
 	"currency-service/internal/worker"
-	"fmt"
 	"log"
 	"net"
 
@@ -24,12 +24,10 @@ func main() {
 		log.Fatalf("error init database connection: %v", err)
 	}
 
-	/*logger, err := zap.NewProduction(db)
-	if err != nil {
-		log.Fatalf("error init logger: %v", err)
-	}*/
-
 	go worker.CurrencyWorker(&cfg, db)
+
+	logger := logger.InitLogger()
+	defer logger.Sync()
 
 	lis, err := net.Listen("tcp", ":8081")
 	if err != nil {
@@ -39,7 +37,7 @@ func main() {
 	grpcServer := grpc.NewServer()
 	currpb.RegisterCurrencyServiceServer(grpcServer, &handler.Server{DB: db})
 
-	fmt.Println("Server running on port 8081...")
+	logger.Info("Server running on port 8081...")
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatal("Error on server: ", err)
 	}
