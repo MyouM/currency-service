@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"currency-service/internal/config"
 	"currency-service/internal/db"
 	handler "currency-service/internal/handler/currency"
@@ -9,6 +10,8 @@ import (
 	"currency-service/internal/worker"
 	"log"
 	"net"
+	"os/signal"
+	"syscall"
 
 	"google.golang.org/grpc"
 )
@@ -37,8 +40,17 @@ func main() {
 	grpcServer := grpc.NewServer()
 	currpb.RegisterCurrencyServiceServer(grpcServer, &handler.Server{DB: db})
 
-	logger.Info("Server running on port 8081...")
-	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatal("Error on server: ", err)
-	}
+	go func() {
+		logger.Info("Server running on port 8081...")
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("Error on server: %v", err)
+		}
+	}()
+
+	sigShut, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	<-sigShut.Done()
+	grpcServer.GracefulStop()
+	logger.Info("gRPC server stoped")
 }
