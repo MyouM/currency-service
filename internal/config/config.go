@@ -24,10 +24,17 @@ type DatabaseConfig struct {
 	MigrationsPath string `mapstructure:"migrations_path"`
 }
 
+type RedisConfig struct {
+	Addr     string `mapstructure:"addr"`
+	Password string `mapstructure:"password"`
+	DB       int    `mapstructure:"db"`
+}
+
 type AppConfig struct {
-	Service  ServiceConfig  `mapstructure:"service"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Currency CurrencyInfo   `mapstructure:"currency"`
+	Service  *ServiceConfig  `mapstructure:"service"`
+	Database *DatabaseConfig `mapstructure:"database"`
+	Currency *CurrencyInfo   `mapstructure:"currency"`
+	Redis    *RedisConfig    `mapstructure:"redis"`
 }
 
 func LoadConfig(path string) (AppConfig, error) {

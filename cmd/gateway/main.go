@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"currency-service/internal/config"
+	"currency-service/internal/db/redis"
 	handler "currency-service/internal/handler/gateway"
 	"currency-service/internal/logger"
 	"currency-service/internal/proto/currpb"
@@ -34,6 +35,12 @@ func main() {
 
 	logger := logger.InitLogger()
 	defer logger.Sync()
+
+	rds, err := redis.InitRedis(cfg.Redis)
+	if err != nil {
+		log.Fatalf("error init redis: %v", err)
+	}
+	defer rds.Close()
 
 	handler.GatewayHandlersInit(router, &cfg, client)
 	server := http.Server{

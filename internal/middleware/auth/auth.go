@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"currency-service/internal/repository"
+	"currency-service/internal/db/redis"
 	"fmt"
 	"net/http"
 	"strings"
@@ -18,7 +18,7 @@ func Validate(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		parts := strings.SplitN(tokenStr, " ", 2)
-		if !repository.FindToken(parts[1]) {
+		if err := redis.FindToken(parts[1]); err != nil {
 			http.Error(
 				w,
 				fmt.Sprint("Incorrect token"),

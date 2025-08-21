@@ -11,7 +11,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("error loading config: %v", err)
 	}
-	err = migrations.NewMigrations(&cfg.Database)
+	err = migrations.NewMigrations(cfg.Database)
 	if err != nil {
 		log.Fatalf("error migration: %v", err)
 	}

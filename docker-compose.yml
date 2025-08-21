@@ -1,3 +1,4 @@
+version: '3.9'
 services:
   postgres:
     container_name: currency_db
@@ -11,3 +12,12 @@ services:
       - ./postgres-data:/data/postgrs
     ports:
       - "5432:5432"
+  redis:
+    image: redis:latest
+    container_name: currency_redis
+    environment:
+      - REDIS_PASSWORD=password
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redisdata:/data

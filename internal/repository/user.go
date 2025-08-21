@@ -2,8 +2,8 @@ package repository
 
 var (
 	secret = []byte("Some_Secret_Text")
-	tokens = make(map[string]struct{})
-	users  = make(map[string]string)
+	//tokens = make(map[string]struct{})
+	users = make(map[string]string)
 )
 
 type User struct {
@@ -20,14 +20,14 @@ func (u User) Exist() bool {
 	return ok
 }
 
-func FindToken(token string) bool {
-	_, ok := tokens[token]
-	return ok
-}
+//func FindToken(token string) bool {
+//	_, ok := tokens[token]
+//	return ok
+//}
 
-func AddToken(token string) {
-	tokens[token] = struct{}{}
-}
+//func AddToken(token string) {
+//	tokens[token] = struct{}{}
+//}
 
 func GetSecret() []byte {
 	return secret

@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"currency-service/internal/config"
+	"currency-service/internal/db/redis"
 	"currency-service/internal/logger"
 	middleware "currency-service/internal/middleware/auth"
 	"currency-service/internal/proto/currpb"
@@ -67,7 +68,15 @@ func registration(w http.ResponseWriter, req *http.Request) {
 			http.StatusBadRequest)
 		return
 	}
-	repository.AddToken(tokenStr)
+	if err = redis.SetToken(tokenStr); err != nil {
+		logger.Error("Redis error", zap.Error(err))
+		http.Error(
+			w,
+			fmt.Sprint("Somethings wrong on server"),
+			http.StatusInternalServerError)
+		return
+	}
+	//repository.AddToken(tokenStr)
 	logger.Info("New registration", zap.String("Login", user.Login))
 	fmt.Fprintf(w, "Token: %s", tokenStr)
 }

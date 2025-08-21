@@ -16,7 +16,7 @@ type CurrInfo struct {
 	next *CurrInfo
 }
 
-func NewDatabaseConnection(cfg config.DatabaseConfig) (*sql.DB, string, error) {
+func NewDatabaseConnection(cfg *config.DatabaseConfig) (*sql.DB, string, error) {
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
 		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Name)
 	db, err := sql.Open("postgres", dsn)
