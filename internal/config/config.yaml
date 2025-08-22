@@ -1,0 +1,18 @@
+service:
+  server_port: "8090"
+
+database:
+  host: "localhost"
+  port: 5432
+  user: "admin"
+  password: "password"
+  name: "currency_db"
+
+redis:
+  addr: "localhost:6379"
+  password: "password"
+  db: 0
+
+currency:
+  url: "http://latest.currency-api.pages.dev/v1/currencies/rub.json"
+  target: "usd"
