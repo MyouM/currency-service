@@ -23,7 +23,7 @@ func NewMigrations(db *config.DatabaseConfig) error {
 		db.Name,
 		"?sslmode=disable",
 	)
-	file := "file:///home/max/currency-service/internal/migrations"
+	file := "file://./internal/migrations"
 	m, err := migrate.New(file, pg)
 	if err != nil {
 		return err

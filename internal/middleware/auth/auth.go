@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"currency-service/internal/db/redis"
+	"currency-service/internal/repository/redis"
 	"fmt"
 	"net/http"
 	"strings"
