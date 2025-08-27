@@ -3,11 +3,11 @@ package handler
 import (
 	"context"
 	"currency-service/internal/config"
-	"currency-service/internal/db/redis"
 	"currency-service/internal/logger"
 	middleware "currency-service/internal/middleware/auth"
 	"currency-service/internal/proto/currpb"
 	"currency-service/internal/repository"
+	"currency-service/internal/repository/redis"
 	"encoding/json"
 	"fmt"
 	"net/http"

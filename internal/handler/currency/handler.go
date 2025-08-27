@@ -2,8 +2,8 @@ package handler
 
 import (
 	"context"
-	"currency-service/internal/db"
 	"currency-service/internal/proto/currpb"
+	"currency-service/internal/repository/postgres"
 	"database/sql"
 	"time"
 )
@@ -23,7 +23,7 @@ func (s *Server) GetSpecificCurrency(
 		return &currpb.ClientSpecResponse{}, err
 	}
 
-	currRate, err := db.GetOneCurrencyRate(s.DB, date)
+	currRate, err := postgres.GetOneCurrencyRate(s.DB, date)
 	if err != nil {
 		return &currpb.ClientSpecResponse{}, err
 	}
@@ -48,7 +48,7 @@ func (s *Server) GetIntervalCurrency(
 		return &currpb.ClientIntervalResponse{}, err
 	}
 
-	currRates, err := db.GetCurrencyChanges(s.DB, dateFrom, dateTo)
+	currRates, err := postgres.GetCurrencyChanges(s.DB, dateFrom, dateTo)
 	if err != nil {
 		return &currpb.ClientIntervalResponse{}, err
 	}

@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"currency-service/internal/config"
-	"currency-service/internal/db/redis"
 	handler "currency-service/internal/handler/gateway"
 	"currency-service/internal/logger"
 	"currency-service/internal/proto/currpb"
+	"currency-service/internal/repository/redis"
 	"fmt"
 	"log"
 	"net/http"
