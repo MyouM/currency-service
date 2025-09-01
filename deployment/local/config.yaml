@@ -2,14 +2,14 @@ service:
   server_port: "8090"
 
 database:
-  host: "postgres"
+  host: "localhost"
   port: 5432
   user: "admin"
   password: "password"
   name: "currency_db"
 
 redis:
-  addr: "redis:6379"
+  addr: "localhost:6379"
   password: "password"
   db: 0
 
