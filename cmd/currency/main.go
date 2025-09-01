@@ -5,6 +5,7 @@ import (
 	"currency-service/internal/config"
 	handler "currency-service/internal/handler/currency"
 	"currency-service/internal/logger"
+	"currency-service/internal/migrations"
 	"currency-service/internal/proto/currpb"
 	"currency-service/internal/repository/postgres"
 	"currency-service/internal/worker"
@@ -20,6 +21,11 @@ func main() {
 	cfg, err := config.LoadConfig("./internal/config/config.yaml")
 	if err != nil {
 		log.Fatalf("error loading config: %v", err)
+	}
+
+	err = migrations.NewMigrations(cfg.Database)
+	if err != nil {
+		log.Fatalf("error migration: %v", err)
 	}
 
 	db, _, err := postgres.NewDatabaseConnection(cfg.Database)
