@@ -38,6 +38,7 @@ func (s *Server) GetIntervalCurrency(
 	ctx context.Context,
 	req *currpb.ClientIntervalRequest) (*currpb.ClientIntervalResponse, error) {
 
+	s.Prometh.GrpcRequestTotal.WithLabelValues("GetRate").Inc()
 	strBeginDate := req.GetDateBegin()
 	strEndDate := req.GetDateEnd()
 
