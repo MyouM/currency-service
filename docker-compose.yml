@@ -37,6 +37,7 @@ services:
     volumes:
       - ./internal/config:/internal/config
     ports:
+      - "8080:8080"
       - "8081:8081"
     depends_on:
       postgres:
@@ -55,3 +56,10 @@ services:
     depends_on:
       - redis
       - currency
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./internal/metrics/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
