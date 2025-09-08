@@ -4,7 +4,7 @@ import (
 	"context"
 	"currency-service/internal/metrics"
 	"currency-service/internal/proto/currpb"
-	"currency-service/internal/repository/postgres"
+	postgres "currency-service/internal/repository/postgres/currency"
 	"database/sql"
 	"time"
 )

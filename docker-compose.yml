@@ -28,6 +28,21 @@ services:
     volumes:
       - ./redisdata:/data
 
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT-PORT: 2181
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    ports: 
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
   currency:
     build:
       context: .
@@ -57,6 +72,20 @@ services:
     depends_on:
       - redis
       - currency
+
+  auth:
+    build:
+      context: .
+      dockerfile: ./deployment/local/Dockerfile
+      args:
+        - BUILD_TARGET=./cmd/auth/main.go
+    volumes:
+      - ./internal/config:/internal/config
+      - ./internal/migrations:/internal/migrations
+    depends_on:
+      - redis 
+      - gateway
+      - kafka
 
   prometheus:
     image: prom/prometheus:latest
