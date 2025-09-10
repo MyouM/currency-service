@@ -2,7 +2,9 @@ package handler
 
 import (
 	"context"
+	"currency-service/internal/auth"
 	"currency-service/internal/config"
+	kafkaCur "currency-service/internal/kafka"
 	"currency-service/internal/logger"
 	middleware "currency-service/internal/middleware/auth"
 	"currency-service/internal/proto/currpb"
@@ -13,8 +15,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/segmentio/kafka-go"
 	"go.uber.org/zap"
 )
+
+var cfg *config.AppConfig
 
 type User struct {
 	Login    string `json:"login"`
@@ -23,9 +28,10 @@ type User struct {
 
 func GatewayHandlersInit(
 	router *http.ServeMux,
-	cfg *config.AppConfig,
+	conf *config.AppConfig,
 	grpcClient currpb.CurrencyServiceClient) {
 
+	cfg = conf
 	router.HandleFunc(
 		"GET /currency/one/{date}",
 		middleware.Validate(getOneCurrencyRate(grpcClient)))
@@ -47,13 +53,13 @@ func loginHandler(w http.ResponseWriter, req *http.Request) {
 		kafkaKey       = "login-gateway"
 		logger         = logger.GetLogger()
 		gwayRespWriter = kafka.NewWriter(kafka.WriterConfig{
-			Broker:   []string{auth.Host},
-			Topic:    auth.LoginReqTopic,
+			Brokers:  []string{cfg.Kafka.BrokerHost},
+			Topic:    kafkaCur.LoginRespTopic,
 			Balancer: &kafka.LeastBytes{},
 		})
-		gwayReqReader = kafka.NewReader(kafka.WriteConfig{
-			Broker:   []string{auth.Host},
-			Topic:    auth.LoginRespTopic,
+		gwayReqReader = kafka.NewReader(kafka.ReaderConfig{
+			Brokers:  []string{cfg.Kafka.BrokerHost},
+			Topic:    kafkaCur.LoginReqTopic,
 			MinBytes: 1,
 			MaxBytes: 10e6,
 		})
@@ -77,7 +83,7 @@ func loginHandler(w http.ResponseWriter, req *http.Request) {
 		kafkaKey,
 		user.Login,
 		user.Password)
-	err = gwayRespWriter.WriteMessage(
+	err := gwayRespWriter.WriteMessages(
 		context.Background(),
 		kafka.Message{
 			Key:   []byte(kafkaKey),
@@ -111,16 +117,16 @@ func loginHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if msg.Error != nil {
-		logger.Error("Auth error:", zap.Error(msg.Error))
+	if authResp.Error != nil {
+		logger.Error("Auth error:", zap.Error(authResp.Error))
 		http.Error(
 			w,
-			fmt.Sprintf("Error: %s", msg.Error),
+			fmt.Sprintf("Error: %s", authResp.Error),
 			http.StatusBadRequest)
 		return
 	}
 
-	if err = redis.SetToken(msg.Token); err != nil {
+	if err = redis.SetToken(authResp.Token); err != nil {
 		logger.Error("Redis error", zap.Error(err))
 		http.Error(
 			w,
@@ -129,23 +135,23 @@ func loginHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	logger.Info("User logged in", zap.String("Login", user.Login))
-	fmt.Fprintf(w, "Token: %s", tokenStr)
+	fmt.Fprintf(w, "Token: %s", authResp.Token)
 }
 
 func registrationHandler(w http.ResponseWriter, req *http.Request) {
 	var (
 		user           User
 		authResp       auth.AuthResponse
-		kafkaKey       = "register-gateway"
 		logger         = logger.GetLogger()
+		kafkaKey       = "register-gateway"
 		gwayRespWriter = kafka.NewWriter(kafka.WriterConfig{
-			Broker:   []string{auth.Host},
-			Topic:    auth.RegisterReqTopic,
+			Brokers:  []string{cfg.Kafka.BrokerHost},
+			Topic:    kafkaCur.RegisterRespTopic,
 			Balancer: &kafka.LeastBytes{},
 		})
-		gwayReqReader = kafka.NewReader(kafka.WriteConfig{
-			Broker:   []string{auth.Host},
-			Topic:    auth.RegisterRespTopic,
+		gwayReqReader = kafka.NewReader(kafka.ReaderConfig{
+			Brokers:  []string{cfg.Kafka.BrokerHost},
+			Topic:    kafkaCur.RegisterReqTopic,
 			MinBytes: 1,
 			MaxBytes: 10e6,
 		})
@@ -169,7 +175,7 @@ func registrationHandler(w http.ResponseWriter, req *http.Request) {
 		kafkaKey,
 		user.Login,
 		user.Password)
-	err = gwayRespWriter.WriteMessage(
+	err := gwayRespWriter.WriteMessages(
 		context.Background(),
 		kafka.Message{
 			Key:   []byte(kafkaKey),
@@ -203,16 +209,16 @@ func registrationHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if msg.Error != nil {
-		logger.Error("Auth error:", zap.Error(msg.Error))
+	if authResp.Error != nil {
+		logger.Error("Auth error:", zap.Error(authResp.Error))
 		http.Error(
 			w,
-			fmt.Sprintf("Error: %s", msg.Error),
+			fmt.Sprintf("Error: %s", authResp.Error),
 			http.StatusBadRequest)
 		return
 	}
 
-	if err = redis.SetToken(msg.Token); err != nil {
+	if err = redis.SetToken(authResp.Token); err != nil {
 		logger.Error("Redis error", zap.Error(err))
 		http.Error(
 			w,
@@ -221,7 +227,7 @@ func registrationHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	logger.Info("New registration", zap.String("Login", user.Login))
-	fmt.Fprintf(w, "Token: %s", tokenStr)
+	fmt.Fprintf(w, "Token: %s", authResp.Token)
 }
 
 func getIntervalCurrencyChanges(grpcClient currpb.CurrencyServiceClient) http.HandlerFunc {

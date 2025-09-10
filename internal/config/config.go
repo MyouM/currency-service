@@ -30,11 +30,17 @@ type RedisConfig struct {
 	DB       int    `mapstructure:"db"`
 }
 
+type KafkaConfig struct {
+	BrokerHost     string `mapstructure:"host_broker"`
+	ControllerHost string `mapstructure:"host_controller"`
+}
+
 type AppConfig struct {
 	Service  *ServiceConfig  `mapstructure:"service"`
 	Database *DatabaseConfig `mapstructure:"database"`
 	Currency *CurrencyInfo   `mapstructure:"currency"`
 	Redis    *RedisConfig    `mapstructure:"redis"`
+	Kafka    *KafkaConfig    `mapstructure:kafka`
 }
 
 func LoadConfig(path string) (AppConfig, error) {

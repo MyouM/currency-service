@@ -2,7 +2,9 @@ package auth
 
 import (
 	"context"
+	"currency-service/internal/config"
 	"currency-service/internal/jwt"
+	kafkaCur "currency-service/internal/kafka"
 	log "currency-service/internal/logger"
 	postgres "currency-service/internal/repository/postgres/auth"
 	"encoding/json"
@@ -14,17 +16,8 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	Host              = "kafka:9092"
-	RegisterReqTopic  = "registration-request"
-	RegisterRespTopic = "registration-response"
-	LoginReqTopic     = "login-request"
-	LoginRespTopic    = "login-response"
-)
-
 var (
 	errForUser = errors.New("Auth service have some trouble, try later.")
-	logger     = log.GetLogger()
 )
 
 type AuthRequest struct {
@@ -38,36 +31,38 @@ type AuthResponse struct {
 	Error error  `json:"error"`
 }
 
-func StartAuthService(sigCtx context.Context) {
+func StartAuthService(sigCtx context.Context, cfg *config.KafkaConfig) {
 	var (
-		wg                sync.WaitGroup
-		registerReqReader = kafka.NewReader(kafka.ReaderConfig{
-			Brokers:  []string{Host},
-			Topic:    RegisterReqTopic,
-			GroupID:  "auth-service-group",
-			MinBytes: 1,
-			MaxBytes: 10e6,
-		})
-
-		registerRespWriter = kafka.NewWriter(kafka.WriterConfig{
-			Brokers:  []string{Host},
-			Topic:    RegisterRespTopic,
-			Balancer: &kafka.LeastBytes{},
-		})
-		loginReqReader = kafka.NewReader(kafka.ReaderConfig{
-			Brokers:  []string{Host},
-			Topic:    LoginReqTopic,
-			GroupID:  "auth-service-group",
-			MinBytes: 1,
-			MaxBytes: 10e6,
-		})
-
-		loginRespWriter = kafka.NewWriter(kafka.WriterConfig{
-			Brokers:  []string{Host},
-			Topic:    LoginRespTopic,
-			Balancer: &kafka.LeastBytes{},
-		})
+		wg     sync.WaitGroup
+		logger = log.GetLogger()
 	)
+	logger.Info("Auth service work done")
+	registerReqReader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers:  []string{cfg.BrokerHost},
+		Topic:    kafkaCur.RegisterReqTopic,
+		GroupID:  "auth-service-group",
+		MinBytes: 1,
+		MaxBytes: 10e6,
+	})
+
+	registerRespWriter := kafka.NewWriter(kafka.WriterConfig{
+		Brokers:  []string{cfg.BrokerHost},
+		Topic:    kafkaCur.RegisterRespTopic,
+		Balancer: &kafka.LeastBytes{},
+	})
+	loginReqReader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers:  []string{cfg.BrokerHost},
+		Topic:    kafkaCur.LoginReqTopic,
+		GroupID:  "auth-service-group",
+		MinBytes: 1,
+		MaxBytes: 10e6,
+	})
+
+	loginRespWriter := kafka.NewWriter(kafka.WriterConfig{
+		Brokers:  []string{cfg.BrokerHost},
+		Topic:    kafkaCur.LoginRespTopic,
+		Balancer: &kafka.LeastBytes{},
+	})
 	defer registerReqReader.Close()
 	defer registerRespWriter.Close()
 	defer loginReqReader.Close()
@@ -104,6 +99,7 @@ func loginService(
 	ctx context.Context,
 	loginReqReader *kafka.Reader,
 	loginRespWriter *kafka.Writer) error {
+	logger := log.GetLogger()
 	for {
 		select {
 		case <-ctx.Done():
@@ -189,6 +185,7 @@ func registerService(
 	ctx context.Context,
 	registerReqReader *kafka.Reader,
 	registerRespWriter *kafka.Writer) error {
+	logger := log.GetLogger()
 	for {
 		select {
 		case <-ctx.Done():
@@ -288,6 +285,7 @@ func writeMessage(
 	errorMsg error,
 	ctx context.Context,
 	writer *kafka.Writer) error {
+	logger := log.GetLogger()
 
 	message := fmt.Sprintf(`{"token":"%s","error":"%s"}`, token, errorMsg)
 	err := writer.WriteMessages(

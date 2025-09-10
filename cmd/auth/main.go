@@ -4,6 +4,7 @@ import (
 	"context"
 	"currency-service/internal/auth"
 	"currency-service/internal/config"
+	"currency-service/internal/kafka"
 	"currency-service/internal/logger"
 	"currency-service/internal/migrations"
 	"currency-service/internal/repository/postgres"
@@ -35,11 +36,18 @@ func main() {
 	logger := logger.InitLogger()
 	defer logger.Sync()
 
+	//Инициализация топиков Kafka
+	err = kafka.InitKafkaTopics(cfg.Kafka)
+	if err != nil {
+		log.Fatalf("error init kafka topics: %v", err)
+	}
+
 	//Контекст, реагирующий на сигналы системы
 	sigShut, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	//Запуск сервиса авторизации
 	logger.Info("Auth service start workinng.")
-	auth.StartAuthService(sigShut)
+	auth.StartAuthService(sigShut, cfg.Kafka)
+	<-sigShut.Done()
 }

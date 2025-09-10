@@ -8,6 +8,10 @@ database:
   password: "password"
   name: "currency_db"
 
+kafka:
+  host_broker: "kafka:9092"
+  host_controller: "kafka:9093"
+
 redis:
   addr: "redis:6379"
   password: "password"

@@ -8,5 +8,4 @@ RUN go build -o /app/bin/app $BUILD_TARGET
 FROM scratch
 COPY --from=builder /app/bin/app /
 COPY --from=builder /app/internal/config /internal/config
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 ENTRYPOINT ["/app"]

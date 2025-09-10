@@ -25,11 +25,11 @@ func NewMigrations(db *config.DatabaseConfig, path string) error {
 	)
 	file := "file://./internal/migrations/" + path
 	m, err := migrate.New(file, pg)
-	if err != nil {
+	if err != nil && err != migrate.ErrNoChange {
 		return err
 	}
 	err = m.Up()
-	if err != nil {
+	if err != nil && err != migrate.ErrNoChange {
 		return err
 	}
 	return nil
