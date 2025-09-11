@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/segmentio/kafka-go"
 )
 
 const (
@@ -22,36 +22,37 @@ var topics = []string{
 	LoginRespTopic}
 
 func InitKafkaTopics(cfg *config.KafkaConfig) error {
-	admin, err := kafka.NewAdminClient(&kafka.ConfigMap{
-		"bootstrap.servers": cfg.BrokerHost,
-	})
+	conn, err := kafka.Dial("tcp", cfg.BrokerHost)
 	if err != nil {
 		return err
 	}
-	defer admin.Close()
+	defer conn.Close()
 
-	tpcConfigs := make([]kafka.TopicSpecification, 0, 1)
+	controller, err := conn.Controller()
+	if err != nil {
+		return err
+	}
+	ctrlAddr := fmt.Sprintf("%s:%d", controller.Host, controller.Port)
+
+	ctrlConn, err := kafka.Dial("tcp", ctrlAddr)
+	if err != nil {
+		return err
+	}
+	defer ctrlConn.Close()
+
+	_ = ctrlConn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+
+	tpcConfigs := make([]kafka.TopicConfig, 0, 1)
 	for _, topic := range topics {
-		tpc := kafka.TopicSpecification{
+		tpc := kafka.TopicConfig{
 			Topic:             topic,
 			NumPartitions:     1,
 			ReplicationFactor: 1,
 		}
 		tpcConfigs = append(tpcConfigs, tpc)
 	}
-	results, err := admin.CreateTopics(
-		nil,
-		tpcConfigs,
-		kafka.SetAdminOperationTimeout(10*time.Second))
-	if err != nil {
+	if err := ctrlConn.CreateTopics(tpcConfigs...); err != nil {
 		return err
-	}
-
-	for _, res := range results {
-		if res.Error.Code() != kafka.ErrNoError &&
-			res.Error.Code() != kafka.ErrTopicAlreadyExists {
-			return fmt.Errorf("failed to create topic %s: %v", res.Topic, res.Error)
-		}
 	}
 	return nil
 }
