@@ -4,7 +4,7 @@ import (
 	"context"
 	"currency-service/internal/config"
 	"currency-service/internal/logger"
-	"currency-service/internal/repository/postgres"
+	postgres "currency-service/internal/repository/postgres/currency"
 	"database/sql"
 	"encoding/json"
 	"fmt"

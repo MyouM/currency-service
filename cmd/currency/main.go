@@ -28,7 +28,7 @@ func main() {
 	}
 
 	//Миграция БД
-	err = migrations.NewMigrations(cfg.Database)
+	err = migrations.NewMigrations(cfg.Database, "currency")
 	if err != nil {
 		log.Fatalf("error migration: %v", err)
 	}
@@ -71,12 +71,12 @@ func main() {
 	sigShut, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	//Инициализация воркера
+	// Запуск воркера
 	go worker.CurrencyWorker(&cfg, db, sigShut)
 
 	//Запуск gRPC сервера
 	go func() {
-		logger.Info("Server running on port 8081...")
+		logger.Info("Currency server running on port 8081...")
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatalf("Error on server: %v", err)
 		}
