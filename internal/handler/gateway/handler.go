@@ -77,6 +77,7 @@ func loginHandler(w http.ResponseWriter, req *http.Request) {
 			http.StatusBadRequest)
 		return
 	}
+	logger.Info("Log in operation started")
 
 	request := fmt.Sprintf(
 		`{"id":"%s","login":"%s","password":"%s"}`,
@@ -117,8 +118,8 @@ func loginHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if authResp.Error != nil {
-		logger.Error("Auth error:", zap.Error(authResp.Error))
+	if authResp.Error != "" {
+		logger.Error("Auth error:", zap.String("", authResp.Error))
 		http.Error(
 			w,
 			fmt.Sprintf("Error: %s", authResp.Error),
@@ -169,6 +170,7 @@ func registrationHandler(w http.ResponseWriter, req *http.Request) {
 			http.StatusBadRequest)
 		return
 	}
+	logger.Info("Registration operation started")
 
 	request := fmt.Sprintf(
 		`{"id":"%s","login":"%s","password":"%s"}`,
@@ -209,8 +211,8 @@ func registrationHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if authResp.Error != nil {
-		logger.Error("Auth error:", zap.Error(authResp.Error))
+	if authResp.Error != "" {
+		logger.Error("Auth error:", zap.String("", authResp.Error))
 		http.Error(
 			w,
 			fmt.Sprintf("Error: %s", authResp.Error),

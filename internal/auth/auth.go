@@ -28,7 +28,7 @@ type AuthRequest struct {
 
 type AuthResponse struct {
 	Token string `json:"token"`
-	Error error  `json:"error"`
+	Error string `json:"error"`
 }
 
 func StartAuthService(sigCtx context.Context, cfg *config.KafkaConfig) {
@@ -39,7 +39,7 @@ func StartAuthService(sigCtx context.Context, cfg *config.KafkaConfig) {
 	logger.Info("Auth service work done")
 	registerReqReader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:  []string{cfg.BrokerHost},
-		Topic:    kafkaCur.RegisterReqTopic,
+		Topic:    kafkaCur.RegisterRespTopic,
 		GroupID:  "auth-service-group",
 		MinBytes: 1,
 		MaxBytes: 10e6,
@@ -47,12 +47,12 @@ func StartAuthService(sigCtx context.Context, cfg *config.KafkaConfig) {
 
 	registerRespWriter := kafka.NewWriter(kafka.WriterConfig{
 		Brokers:  []string{cfg.BrokerHost},
-		Topic:    kafkaCur.RegisterRespTopic,
+		Topic:    kafkaCur.RegisterReqTopic,
 		Balancer: &kafka.LeastBytes{},
 	})
 	loginReqReader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:  []string{cfg.BrokerHost},
-		Topic:    kafkaCur.LoginReqTopic,
+		Topic:    kafkaCur.LoginRespTopic,
 		GroupID:  "auth-service-group",
 		MinBytes: 1,
 		MaxBytes: 10e6,
@@ -60,7 +60,7 @@ func StartAuthService(sigCtx context.Context, cfg *config.KafkaConfig) {
 
 	loginRespWriter := kafka.NewWriter(kafka.WriterConfig{
 		Brokers:  []string{cfg.BrokerHost},
-		Topic:    kafkaCur.LoginRespTopic,
+		Topic:    kafkaCur.LoginReqTopic,
 		Balancer: &kafka.LeastBytes{},
 	})
 	defer registerReqReader.Close()
@@ -117,7 +117,7 @@ func loginService(
 				kafkaErr := writeMessage(
 					req.ID,
 					"",
-					errForUser,
+					errForUser.Error(),
 					ctx,
 					loginRespWriter)
 				if kafkaErr != nil {
@@ -131,7 +131,7 @@ func loginService(
 				kafkaErr := writeMessage(
 					req.ID,
 					"",
-					errForUser,
+					errForUser.Error(),
 					ctx,
 					loginRespWriter)
 				if kafkaErr != nil {
@@ -144,7 +144,7 @@ func loginService(
 				kafkaErr := writeMessage(
 					req.ID,
 					"",
-					err,
+					err.Error(),
 					ctx,
 					loginRespWriter)
 				if kafkaErr != nil {
@@ -158,7 +158,7 @@ func loginService(
 				kafkaErr := writeMessage(
 					req.ID,
 					"",
-					errForUser,
+					errForUser.Error(),
 					ctx,
 					loginRespWriter)
 				if kafkaErr != nil {
@@ -169,7 +169,7 @@ func loginService(
 			kafkaErr := writeMessage(
 				req.ID,
 				token,
-				nil,
+				"",
 				ctx,
 				loginRespWriter)
 			if kafkaErr != nil {
@@ -203,7 +203,7 @@ func registerService(
 				kafkaErr := writeMessage(
 					req.ID,
 					"",
-					errForUser,
+					errForUser.Error(),
 					ctx,
 					registerRespWriter)
 				if kafkaErr != nil {
@@ -217,7 +217,7 @@ func registerService(
 				kafkaErr := writeMessage(
 					req.ID,
 					"",
-					errForUser,
+					errForUser.Error(),
 					ctx,
 					registerRespWriter)
 				if kafkaErr != nil {
@@ -230,7 +230,7 @@ func registerService(
 				kafkaErr := writeMessage(
 					req.ID,
 					"",
-					err,
+					err.Error(),
 					ctx,
 					registerRespWriter)
 				if kafkaErr != nil {
@@ -243,7 +243,7 @@ func registerService(
 				kafkaErr := writeMessage(
 					req.ID,
 					"",
-					errForUser,
+					errForUser.Error(),
 					ctx,
 					registerRespWriter)
 				if kafkaErr != nil {
@@ -257,7 +257,7 @@ func registerService(
 				kafkaErr := writeMessage(
 					req.ID,
 					"",
-					errForUser,
+					errForUser.Error(),
 					ctx,
 					registerRespWriter)
 				if kafkaErr != nil {
@@ -268,7 +268,7 @@ func registerService(
 			kafkaErr := writeMessage(
 				req.ID,
 				token,
-				nil,
+				"",
 				ctx,
 				registerRespWriter)
 			if kafkaErr != nil {
@@ -282,7 +282,7 @@ func registerService(
 
 func writeMessage(
 	id, token string,
-	errorMsg error,
+	errorMsg string,
 	ctx context.Context,
 	writer *kafka.Writer) error {
 	logger := log.GetLogger()

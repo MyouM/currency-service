@@ -81,8 +81,6 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
-    networks:
-      - kafka-net
     healthcheck:
       test: ["CMD-SHELL", "echo stat | nc localhost 2181 | grep Mode"]
       interval: 10s
@@ -111,8 +109,6 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_JMX_PORT: 9999
       KAFKA_JMX_HOSTNAME: kafka
-    networks:
-      - kafka-net
     healthcheck:
       test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
       interval: 10s
@@ -133,6 +129,7 @@ services:
       - redis
       - gateway
       - kafka
+      - zookeeper
 
 
   kafka-ui:
@@ -151,9 +148,4 @@ services:
     depends_on:
       - kafka
       - zookeeper
-    networks:
-      - kafka-net
 
-networks:
-  kafka-net:
-    driver: bridge

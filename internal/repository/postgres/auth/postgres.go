@@ -64,7 +64,7 @@ func IsLoginExist(reqLogin string) (bool, error) {
 	if err = rows.Err(); err != nil {
 		return false, err
 	}
-	if login == reqLogin {
+	if login != reqLogin {
 		return false, nil
 	}
 	return true, nil

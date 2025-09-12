@@ -27,16 +27,16 @@ func main() {
 		log.Fatalf("error loading config: %v", err)
 	}
 
-	//Миграция БД
-	err = migrations.NewMigrations(cfg.Database, "currency")
-	if err != nil {
-		log.Fatalf("error migration: %v", err)
-	}
-
 	//Подключение к Postgres
 	db, _, err := postgres.NewDatabaseConnection(cfg.Database)
 	if err != nil {
 		log.Fatalf("error init database connection: %v", err)
+	}
+
+	//Миграция БД
+	err = migrations.NewMigrations(db, "currency")
+	if err != nil {
+		log.Fatalf("error migration: %v", err)
 	}
 
 	//Инициализация логгирования
