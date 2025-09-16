@@ -125,6 +125,7 @@ services:
     volumes:
       - ./internal/config:/internal/config
       - ./internal/migrations:/internal/migrations
+    restart: always
     depends_on:
       - redis
       - gateway

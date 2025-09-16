@@ -6,7 +6,7 @@ import (
 	"currency-service/internal/jwt"
 	kafkaCur "currency-service/internal/kafka"
 	log "currency-service/internal/logger"
-	postgres "currency-service/internal/repository/postgres/auth"
+	"currency-service/internal/repository/postgres"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,12 +31,14 @@ type AuthResponse struct {
 	Error string `json:"error"`
 }
 
-func StartAuthService(sigCtx context.Context, cfg *config.KafkaConfig) {
+func StartAuthService(
+	sigCtx context.Context,
+	cfg *config.KafkaConfig,
+	repo postgres.AuthRepo) {
 	var (
 		wg     sync.WaitGroup
 		logger = log.GetLogger()
 	)
-	logger.Info("Auth service work done")
 	registerReqReader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:  []string{cfg.BrokerHost},
 		Topic:    kafkaCur.RegisterRespTopic,
@@ -74,6 +76,7 @@ func StartAuthService(sigCtx context.Context, cfg *config.KafkaConfig) {
 	go func() {
 		err := registerService(
 			ctx,
+			repo,
 			registerReqReader,
 			registerRespWriter)
 		if err != nil {
@@ -84,6 +87,7 @@ func StartAuthService(sigCtx context.Context, cfg *config.KafkaConfig) {
 	go func() {
 		err := loginService(
 			ctx,
+			repo,
 			loginReqReader,
 			loginRespWriter)
 		if err != nil {
@@ -97,9 +101,13 @@ func StartAuthService(sigCtx context.Context, cfg *config.KafkaConfig) {
 
 func loginService(
 	ctx context.Context,
+	repo postgres.AuthRepo,
 	loginReqReader *kafka.Reader,
 	loginRespWriter *kafka.Writer) error {
-	logger := log.GetLogger()
+
+	var (
+		logger = log.GetLogger()
+	)
 	for {
 		select {
 		case <-ctx.Done():
@@ -125,7 +133,7 @@ func loginService(
 				}
 				continue
 			}
-			success, err := postgres.LogIn(req.Login, req.Password)
+			success, err := repo.LogIn(req.Login, req.Password)
 			if err != nil {
 				logger.Error("Postgres error:", zap.Error(err))
 				kafkaErr := writeMessage(
@@ -183,6 +191,7 @@ func loginService(
 
 func registerService(
 	ctx context.Context,
+	repo postgres.AuthRepo,
 	registerReqReader *kafka.Reader,
 	registerRespWriter *kafka.Writer) error {
 	logger := log.GetLogger()
@@ -211,7 +220,7 @@ func registerService(
 				}
 				continue
 			}
-			exist, err := postgres.IsLoginExist(req.Login)
+			exist, err := repo.IsLoginExist(req.Login)
 			if err != nil {
 				logger.Error("Postgres error:", zap.Error(err))
 				kafkaErr := writeMessage(
@@ -238,7 +247,7 @@ func registerService(
 				}
 				continue
 			}
-			if err = postgres.AddUser(req.Login, req.Password); err != nil {
+			if err = repo.AddUser(req.Login, req.Password); err != nil {
 				logger.Error("Postgres error:", zap.Error(err))
 				kafkaErr := writeMessage(
 					req.ID,

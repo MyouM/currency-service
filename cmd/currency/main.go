@@ -28,13 +28,13 @@ func main() {
 	}
 
 	//Подключение к Postgres
-	db, _, err := postgres.NewDatabaseConnection(cfg.Database)
+	repo, err := postgres.InitCurrencyRepo(cfg.Database)
 	if err != nil {
 		log.Fatalf("error init database connection: %v", err)
 	}
 
 	//Миграция БД
-	err = migrations.NewMigrations(db, "currency")
+	err = migrations.NewMigrations(repo.DB, "currency")
 	if err != nil {
 		log.Fatalf("error migration: %v", err)
 	}
@@ -64,7 +64,7 @@ func main() {
 	currpb.RegisterCurrencyServiceServer(
 		grpcServer,
 		&handler.Server{
-			DB:      db,
+			Repo:    repo,
 			Prometh: promets})
 
 	//Контекст, реагирующий на сигналы системы
@@ -72,7 +72,7 @@ func main() {
 	defer stop()
 
 	// Запуск воркера
-	go worker.CurrencyWorker(&cfg, db, sigShut)
+	go worker.CurrencyWorker(&cfg, repo, sigShut)
 
 	//Запуск gRPC сервера
 	go func() {

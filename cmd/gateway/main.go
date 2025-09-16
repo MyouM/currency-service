@@ -42,7 +42,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("error init redis: %v", err)
 	}
-	defer rds.Close()
+	defer rds.Client.Close()
 
 	//Инициализация и запуск http сервера 
 	router := http.NewServeMux()

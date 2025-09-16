@@ -38,17 +38,16 @@ func GatewayHandlersInit(
 	router.HandleFunc(
 		"GET /currency/period/{dates}",
 		middleware.Validate(getIntervalCurrencyChanges(grpcClient)))
-	router.HandleFunc(
-		"POST /registration",
-		registrationHandler)
-	router.HandleFunc(
-		"POST /login",
-		loginHandler)
+	router.HandleFunc("POST /registration", registrationHandler)
+	router.HandleFunc("POST /login", loginHandler)
+	router.HandleFunc("GET /livez", kuberLivez)
+	router.HandleFunc("GET /readyz", kuberReadyz(cfg))
 }
 
 func loginHandler(w http.ResponseWriter, req *http.Request) {
 	var (
 		user           User
+		redis          = redis.GetRedisClient()
 		authResp       auth.AuthResponse
 		kafkaKey       = "login-gateway"
 		logger         = logger.GetLogger()
@@ -142,6 +141,7 @@ func loginHandler(w http.ResponseWriter, req *http.Request) {
 func registrationHandler(w http.ResponseWriter, req *http.Request) {
 	var (
 		user           User
+		redis          = redis.GetRedisClient()
 		authResp       auth.AuthResponse
 		logger         = logger.GetLogger()
 		kafkaKey       = "register-gateway"

@@ -8,10 +8,6 @@ import (
 	_ "github.com/lib/pq"
 )
 
-var (
-	DB *sql.DB
-)
-
 func NewDatabaseConnection(cfg *config.DatabaseConfig) (*sql.DB, string, error) {
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
 		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Name)
@@ -23,8 +19,6 @@ func NewDatabaseConnection(cfg *config.DatabaseConfig) (*sql.DB, string, error) 
 	if err := db.Ping(); err != nil {
 		return nil, "", fmt.Errorf("failed to connect to database: %w", err)
 	}
-
-	DB = db
 
 	return db, dsn, nil
 }
