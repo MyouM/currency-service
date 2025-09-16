@@ -4,8 +4,7 @@ import (
 	"context"
 	"currency-service/internal/config"
 	"currency-service/internal/logger"
-	postgres "currency-service/internal/repository/postgres/currency"
-	"database/sql"
+	"currency-service/internal/repository/postgres"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,7 +19,11 @@ type RatesResponse struct {
 	Rub  map[string]float64 `json:"rub"`
 }
 
-func CurrencyWorker(cfg *config.AppConfig, DB *sql.DB, ctx context.Context) {
+func CurrencyWorker(
+	cfg *config.AppConfig,
+	repo postgres.CurrencyRepo,
+	ctx context.Context) {
+
 	logger := logger.GetLogger()
 	timeChan := make(chan struct{})
 	defer close(timeChan)
@@ -54,7 +57,7 @@ func CurrencyWorker(cfg *config.AppConfig, DB *sql.DB, ctx context.Context) {
 				break
 			}
 
-			err = postgres.AddWorkerInfo(DB,
+			err = repo.AddWorkerInfo(
 				rateDate,
 				cfg.Currency.Target,
 				currRate)

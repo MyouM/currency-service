@@ -18,6 +18,8 @@ func Validate(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		parts := strings.SplitN(tokenStr, " ", 2)
+
+		redis := redis.GetRedisClient()
 		if err := redis.FindToken(parts[1]); err != nil {
 			http.Error(
 				w,

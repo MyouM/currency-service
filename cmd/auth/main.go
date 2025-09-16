@@ -21,13 +21,13 @@ func main() {
 	}
 
 	//Подключение к Postgres
-	db, _, err := postgres.NewDatabaseConnection(cfg.Database)
+	repo, err := postgres.InitAuthRepo(cfg.Database)
 	if err != nil {
 		log.Fatalf("error init database connection: %v", err)
 	}
 
 	//Миграция БД
-	err = migrations.NewMigrations(db, "auth")
+	err = migrations.NewMigrations(repo.DB, "auth")
 	if err != nil {
 		log.Fatalf("error migration: %v", err)
 	}
@@ -48,6 +48,6 @@ func main() {
 
 	//Запуск сервиса авторизации
 	logger.Info("Auth service start workinng.")
-	auth.StartAuthService(sigShut, cfg.Kafka)
+	auth.StartAuthService(sigShut, cfg.Kafka, repo)
 	<-sigShut.Done()
 }

@@ -1,16 +1,34 @@
-package postgres_auth
+package postgres
 
 import (
-	"currency-service/internal/repository/postgres"
+	"currency-service/internal/config"
+	"database/sql"
 )
 
-func LogIn(reqLogin, reqPassword string) (bool, error) {
+type AuthRepo struct {
+	DB *sql.DB
+}
+
+type AuthPsqlFuncs interface {
+	LogIn(string, string) (bool, error)
+	IsLoginExist(string) (bool, error)
+	AddUser(string, string) error
+}
+
+func InitAuthRepo(cfg *config.DatabaseConfig) (AuthRepo, error) {
+	db, _, err := NewDatabaseConnection(cfg)
+	if err != nil {
+		return AuthRepo{}, err
+	}
+	return AuthRepo{DB: db}, nil
+}
+
+func (repo AuthRepo) LogIn(reqLogin, reqPassword string) (bool, error) {
 	var (
-		DB              = postgres.DB
 		login, password string
 	)
 
-	rows, err := DB.Query(
+	rows, err := repo.DB.Query(
 		`SELECT login, password
 		FROM authentication
 		WHERE login = $1 AND
@@ -38,13 +56,12 @@ func LogIn(reqLogin, reqPassword string) (bool, error) {
 	return true, nil
 }
 
-func IsLoginExist(reqLogin string) (bool, error) {
+func (repo AuthRepo) IsLoginExist(reqLogin string) (bool, error) {
 	var (
-		DB    = postgres.DB
 		login string
 	)
 
-	rows, err := DB.Query(
+	rows, err := repo.DB.Query(
 		`SELECT login
 		FROM authentication
 		WHERE login = $1
@@ -70,9 +87,8 @@ func IsLoginExist(reqLogin string) (bool, error) {
 	return true, nil
 }
 
-func AddUser(reqLogin, reqPassword string) error {
-	DB := postgres.DB
-	_, err := DB.Exec(
+func (repo AuthRepo) AddUser(reqLogin, reqPassword string) error {
+	_, err := repo.DB.Exec(
 		`INSERT INTO authentication
 		 (login, password) 
 	    	 VALUES ($1, $2)`,

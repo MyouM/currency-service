@@ -10,7 +10,17 @@ import (
 
 var rds_clnt *redis.Client
 
-func InitRedis(cfg *config.RedisConfig) (*redis.Client, error) {
+type RedisClient struct {
+	Client *redis.Client
+}
+
+type RedisFuncs interface {
+	FindToken(string) error
+	SetToken(string) error
+	Ping() error
+}
+
+func InitRedis(cfg *config.RedisConfig) (RedisClient, error) {
 	var ctx = context.Background()
 
 	rds_clnt = redis.NewClient(&redis.Options{
@@ -18,14 +28,22 @@ func InitRedis(cfg *config.RedisConfig) (*redis.Client, error) {
 		Password: cfg.Password,
 		DB:       cfg.DB,
 	})
-	return rds_clnt, rds_clnt.Ping(ctx).Err()
+	return RedisClient{Client: rds_clnt}, rds_clnt.Ping(ctx).Err()
 }
 
-func SetToken(token string) error {
-	return rds_clnt.Set(context.Background(), token, "txt", 2*time.Minute).Err()
+func (rds RedisClient) SetToken(token string) error {
+	return rds.Client.Set(context.Background(), token, "txt", 2*time.Minute).Err()
 }
 
-func FindToken(token string) error {
-	_, err := rds_clnt.Get(context.Background(), token).Result()
+func (rds RedisClient) FindToken(token string) error {
+	_, err := rds.Client.Get(context.Background(), token).Result()
 	return err
+}
+
+func (rds RedisClient) Ping() error {
+	return rds.Client.Ping(context.Background()).Err()
+}
+
+func GetRedisClient() RedisClient {
+	return RedisClient{Client: rds_clnt}
 }

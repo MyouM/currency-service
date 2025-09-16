@@ -4,15 +4,14 @@ import (
 	"context"
 	"currency-service/internal/metrics"
 	"currency-service/internal/proto/currpb"
-	postgres "currency-service/internal/repository/postgres/currency"
-	"database/sql"
+	"currency-service/internal/repository/postgres"
 	"time"
 )
 
 type Server struct {
 	currpb.UnimplementedCurrencyServiceServer
 	Prometh *metrics.Prometh
-	DB      *sql.DB
+	Repo    postgres.CurrencyRepo
 }
 
 func (s *Server) GetSpecificCurrency(
@@ -26,7 +25,7 @@ func (s *Server) GetSpecificCurrency(
 		return &currpb.ClientSpecResponse{}, err
 	}
 
-	currRate, err := postgres.GetOneCurrencyRate(s.DB, date)
+	currRate, err := s.Repo.GetOneCurrencyRate(date)
 	if err != nil {
 		return &currpb.ClientSpecResponse{}, err
 	}
@@ -52,7 +51,7 @@ func (s *Server) GetIntervalCurrency(
 		return &currpb.ClientIntervalResponse{}, err
 	}
 
-	currRates, err := postgres.GetCurrencyChanges(s.DB, dateFrom, dateTo)
+	currRates, err := s.Repo.GetCurrencyChanges(dateFrom, dateTo)
 	if err != nil {
 		return &currpb.ClientIntervalResponse{}, err
 	}

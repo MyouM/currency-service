@@ -1,15 +1,34 @@
-package postgres_currency
+package postgres
 
 import (
+	"currency-service/internal/config"
 	"currency-service/internal/proto/currpb"
 	"database/sql"
 	"fmt"
 	"time"
 )
 
-func GetCurrencyChanges(DB *sql.DB, dateFrom, dateTo time.Time) ([]*currpb.CurrencyRates, error) {
+type CurrencyRepo struct {
+	DB *sql.DB
+}
+
+type CurrencyPsqlFuncs interface {
+	GetCurrencyChanges(time.Time, time.Time) ([]*currpb.CurrencyRates, error)
+	GetOneCurrencyRate(time.Time) (float64, error)
+	AddWorkerInfo(time.Time, string, float64) error
+}
+
+func InitCurrencyRepo(cfg *config.DatabaseConfig) (CurrencyRepo, error) {
+	db, _, err := NewDatabaseConnection(cfg)
+	if err != nil {
+		return CurrencyRepo{}, err
+	}
+	return CurrencyRepo{DB: db}, nil
+}
+
+func (repo CurrencyRepo) GetCurrencyChanges(dateFrom, dateTo time.Time) ([]*currpb.CurrencyRates, error) {
 	currRates := make([]*currpb.CurrencyRates, 0, 2)
-	rows, err := DB.Query(
+	rows, err := repo.DB.Query(
 		`SELECT DISTINCT date, currency_rate
 		FROM exchange_rates
 		WHERE date BETWEEN $1 AND $2`,
@@ -36,12 +55,12 @@ func GetCurrencyChanges(DB *sql.DB, dateFrom, dateTo time.Time) ([]*currpb.Curre
 	return currRates, nil
 }
 
-func GetOneCurrencyRate(DB *sql.DB, date time.Time) (float64, error) {
+func (repo CurrencyRepo) GetOneCurrencyRate(date time.Time) (float64, error) {
 	var (
 		dt       time.Time
 		currRate float64
 	)
-	rows, err := DB.Query(
+	rows, err := repo.DB.Query(
 		`SELECT date, currency_rate
 		FROM exchange_rates
 		WHERE date = $1`,
@@ -66,8 +85,8 @@ func GetOneCurrencyRate(DB *sql.DB, date time.Time) (float64, error) {
 	return currRate, nil
 }
 
-func AddWorkerInfo(DB *sql.DB, date time.Time, target string, rate float64) error {
-	_, err := DB.Exec(`INSERT INTO exchange_rates 
+func (repo CurrencyRepo) AddWorkerInfo(date time.Time, target string, rate float64) error {
+	_, err := repo.DB.Exec(`INSERT INTO exchange_rates 
 			 (date, target_currency, currency_rate) 
 	            	 VALUES ($1, $2, $3)`,
 		date,
