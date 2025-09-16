@@ -16,12 +16,11 @@ type CurrencyInfo struct {
 }
 
 type DatabaseConfig struct {
-	Host           string `mapstructure:"host"`
-	Port           int    `mapstructure:"port"`
-	User           string `mapstructure:"user"`
-	Password       string `mapstructure:"password"`
-	Name           string `mapstructure:"name"`
-	MigrationsPath string `mapstructure:"migrations_path"`
+	Host     string `mapstructure:"host"`
+	Port     int    `mapstructure:"port"`
+	User     string `mapstructure:"user"`
+	Password string `mapstructure:"password"`
+	Name     string `mapstructure:"name"`
 }
 
 type RedisConfig struct {
@@ -30,11 +29,17 @@ type RedisConfig struct {
 	DB       int    `mapstructure:"db"`
 }
 
+type KafkaConfig struct {
+	BrokerHost     string `mapstructure:"host_broker"`
+	ControllerHost string `mapstructure:"host_controller"`
+}
+
 type AppConfig struct {
 	Service  *ServiceConfig  `mapstructure:"service"`
 	Database *DatabaseConfig `mapstructure:"database"`
 	Currency *CurrencyInfo   `mapstructure:"currency"`
 	Redis    *RedisConfig    `mapstructure:"redis"`
+	Kafka    *KafkaConfig    `mapstructure:kafka`
 }
 
 func LoadConfig(path string) (AppConfig, error) {
