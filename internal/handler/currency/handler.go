@@ -11,21 +11,21 @@ import (
 type Server struct {
 	currpb.UnimplementedCurrencyServiceServer
 	Prometh *metrics.Prometh
-	Repo    postgres.CurrencyRepo
+	Psql    postgres.CurrencyPsqlFuncs
 }
 
 func (s *Server) GetSpecificCurrency(
 	ctx context.Context,
 	req *currpb.ClientSpecRequest) (*currpb.ClientSpecResponse, error) {
 
-	s.Prometh.GrpcRequestTotal.WithLabelValues("GetRate").Inc()
+	//s.Prometh.GrpcRequestTotal.WithLabelValues("GetRate").Inc()
 	strDate := req.GetDate()
 	date, err := time.Parse(time.DateOnly, strDate)
 	if err != nil {
 		return &currpb.ClientSpecResponse{}, err
 	}
 
-	currRate, err := s.Repo.GetOneCurrencyRate(date)
+	currRate, err := s.Psql.GetOneCurrencyRate(date)
 	if err != nil {
 		return &currpb.ClientSpecResponse{}, err
 	}
@@ -37,7 +37,7 @@ func (s *Server) GetIntervalCurrency(
 	ctx context.Context,
 	req *currpb.ClientIntervalRequest) (*currpb.ClientIntervalResponse, error) {
 
-	s.Prometh.GrpcRequestTotal.WithLabelValues("GetRate").Inc()
+	//s.Prometh.GrpcRequestTotal.WithLabelValues("GetRate").Inc()
 	strBeginDate := req.GetDateBegin()
 	strEndDate := req.GetDateEnd()
 
@@ -51,7 +51,7 @@ func (s *Server) GetIntervalCurrency(
 		return &currpb.ClientIntervalResponse{}, err
 	}
 
-	currRates, err := s.Repo.GetCurrencyChanges(dateFrom, dateTo)
+	currRates, err := s.Psql.GetCurrencyChanges(dateFrom, dateTo)
 	if err != nil {
 		return &currpb.ClientIntervalResponse{}, err
 	}

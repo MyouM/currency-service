@@ -8,6 +8,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+//go:generate mockgen -source=redis.go -destination=mock/mock_redis.go -package=mock_redis
+
 var rds_clnt *redis.Client
 
 type RedisClient struct {
@@ -44,6 +46,6 @@ func (rds RedisClient) Ping() error {
 	return rds.Client.Ping(context.Background()).Err()
 }
 
-func GetRedisClient() RedisClient {
-	return RedisClient{Client: rds_clnt}
+func GetRedisClient() *RedisClient {
+	return &RedisClient{Client: rds_clnt}
 }

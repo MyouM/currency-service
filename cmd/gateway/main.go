@@ -38,11 +38,10 @@ func main() {
 	defer logger.Sync()
 
 	//Подключение к Redis
-	rds, err := redis.InitRedis(cfg.Redis)
+	_, err = redis.InitRedis(cfg.Redis)
 	if err != nil {
 		log.Fatalf("error init redis: %v", err)
 	}
-	defer rds.Client.Close()
 
 	//Инициализация и запуск http сервера 
 	router := http.NewServeMux()

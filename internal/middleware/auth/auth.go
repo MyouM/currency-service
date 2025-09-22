@@ -4,11 +4,10 @@ import (
 	"currency-service/internal/repository/redis"
 	"fmt"
 	"net/http"
-	"strings"
 )
 
-func Validate(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, req *http.Request) {
+func Validate(rds redis.RedisFuncs, next http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		tokenStr := req.Header.Get("Authorization")
 		if tokenStr == "" {
 			http.Error(
@@ -17,10 +16,8 @@ func Validate(next http.HandlerFunc) http.HandlerFunc {
 				http.StatusBadRequest)
 			return
 		}
-		parts := strings.SplitN(tokenStr, " ", 2)
 
-		redis := redis.GetRedisClient()
-		if err := redis.FindToken(parts[1]); err != nil {
+		if err := rds.FindToken(tokenStr); err != nil {
 			http.Error(
 				w,
 				fmt.Sprint("Incorrect token"),
@@ -28,5 +25,5 @@ func Validate(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		next.ServeHTTP(w, req)
-	}
+	})
 }

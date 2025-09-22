@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+//go:generate mockgen -source=currency_psql.go -destination=mock/mock_currency_psql.go -package=test_postgres
+
 type CurrencyRepo struct {
 	DB *sql.DB
 }
@@ -42,6 +44,7 @@ func (repo CurrencyRepo) GetCurrencyChanges(dateFrom, dateTo time.Time) ([]*curr
 
 	i := 0
 	for rows.Next() {
+		currRates = append(currRates, &currpb.CurrencyRates{})
 		if err := rows.Scan(&currRates[i].Date, &currRates[i].Rate); err != nil {
 			fmt.Println("Database scan error: ", err)
 			return currRates, err

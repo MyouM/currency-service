@@ -64,7 +64,7 @@ func main() {
 	currpb.RegisterCurrencyServiceServer(
 		grpcServer,
 		&handler.Server{
-			Repo:    repo,
+			Psql:    repo,
 			Prometh: promets})
 
 	//Контекст, реагирующий на сигналы системы
