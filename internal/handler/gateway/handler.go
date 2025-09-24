@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/segmentio/kafka-go"
 	"go.uber.org/zap"
@@ -44,19 +43,19 @@ func GatewayHandlersInit(
 		"GET /currency/one/{date}",
 		middleware.Validate(
 			rltns.Redis,
-			rltns.getOneCurrencyRate(grpcClient)))
+			rltns.GetOneCurrencyRate(grpcClient)))
 	router.HandleFunc(
 		"GET /currency/period/{dates}",
 		middleware.Validate(
 			rltns.Redis,
-			rltns.getIntervalCurrencyChanges(grpcClient)))
-	router.HandleFunc("POST /registration", rltns.registrationHandler)
-	router.HandleFunc("POST /login", rltns.loginHandler)
-	router.HandleFunc("GET /livez", rltns.kuberLivez())
-	router.HandleFunc("GET /readyz", rltns.kuberReadyz())
+			rltns.GetIntervalCurrencyChanges(grpcClient)))
+	router.HandleFunc("POST /registration", rltns.RegistrationHandler)
+	router.HandleFunc("POST /login", rltns.LoginHandler)
+	router.HandleFunc("GET /livez", rltns.KuberLivez())
+	router.HandleFunc("GET /readyz", rltns.KuberReadyz())
 }
 
-func (hr HandlerRelations) loginHandler(w http.ResponseWriter, req *http.Request) {
+func (hr HandlerRelations) LoginHandler(w http.ResponseWriter, req *http.Request) {
 	var (
 		user           User
 		authResp       auth.AuthResponse
@@ -148,7 +147,7 @@ func (hr HandlerRelations) loginHandler(w http.ResponseWriter, req *http.Request
 	fmt.Fprintf(w, "Token: %s", authResp.Token)
 }
 
-func (hr HandlerRelations) registrationHandler(w http.ResponseWriter, req *http.Request) {
+func (hr HandlerRelations) RegistrationHandler(w http.ResponseWriter, req *http.Request) {
 	var (
 		user           User
 		authResp       auth.AuthResponse
@@ -240,15 +239,13 @@ func (hr HandlerRelations) registrationHandler(w http.ResponseWriter, req *http.
 	fmt.Fprintf(w, "Token: %s", authResp.Token)
 }
 
-func (hr HandlerRelations) getIntervalCurrencyChanges(grpcClient currpb.CurrencyServiceClient) http.HandlerFunc {
+func (hr HandlerRelations) GetIntervalCurrencyChanges(grpcClient currpb.CurrencyServiceClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		dts := req.PathValue("dates")
-		ctx, cancel := context.WithTimeout(req.Context(), 6*time.Second)
-		defer cancel()
 
 		dates := strings.Split(dts, "-")
 		resp, err := grpcClient.GetIntervalCurrency(
-			ctx,
+			req.Context(),
 			&currpb.ClientIntervalRequest{
 				DateBegin: dates[0],
 				DateEnd:   dates[1],
@@ -262,20 +259,18 @@ func (hr HandlerRelations) getIntervalCurrencyChanges(grpcClient currpb.Currency
 		}
 		currRates := resp.GetRates()
 		for _, rate := range currRates {
-			fmt.Fprintf(w, "%v, %v\n", rate.Date, rate.Rate)
+			fmt.Fprintf(w, "%v, %f\n", rate.Date, rate.Rate)
 		}
 
 	}
 }
 
-func (hr HandlerRelations) getOneCurrencyRate(grpcClient currpb.CurrencyServiceClient) http.HandlerFunc {
+func (hr HandlerRelations) GetOneCurrencyRate(grpcClient currpb.CurrencyServiceClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		date := req.PathValue("date")
-		ctx, cancel := context.WithTimeout(req.Context(), 6*time.Second)
-		defer cancel()
 
 		resp, err := grpcClient.GetSpecificCurrency(
-			ctx,
+			req.Context(),
 			&currpb.ClientSpecRequest{
 				Date: date,
 			})
@@ -287,6 +282,6 @@ func (hr HandlerRelations) getOneCurrencyRate(grpcClient currpb.CurrencyServiceC
 			return
 		}
 
-		fmt.Fprintf(w, "OK: %v\n", resp.GetCurrency())
+		fmt.Fprintf(w, "OK: %f\n", resp.GetCurrency())
 	}
 }

@@ -52,7 +52,7 @@ func (repo AuthRepo) LogIn(reqLogin, reqPassword string) (bool, error) {
 	if err = rows.Err(); err != nil {
 		return false, err
 	}
-	if login != reqLogin {
+	if login == "" || password == "" {
 		return false, nil
 	}
 	return true, nil

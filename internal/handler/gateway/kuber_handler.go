@@ -6,14 +6,14 @@ import (
 	"net/http"
 )
 
-func (hr HandlerRelations) kuberLivez() http.HandlerFunc {
+func (hr HandlerRelations) KuberLivez() http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprint(w, "ok")
 	}
 }
 
-func (hr HandlerRelations) kuberReadyz() http.HandlerFunc {
+func (hr HandlerRelations) KuberReadyz() http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		errors := make([]error, 0, 3)
 		if _, _, err := postgres.NewDatabaseConnection(hr.Cfg.Database); err != nil {

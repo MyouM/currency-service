@@ -53,7 +53,7 @@ func TestGetIntervalCurrency(t *testing.T) {
 			timeString1 = "2000-01-01"
 			timeString2 = "2000-01-02"
 		)
-		expectRate := GetCurrencyChanges{
+		expectRate := []*currpb.CurrencyRates{
 			{Rate: 1.0},
 			{Rate: 2.0},
 		}

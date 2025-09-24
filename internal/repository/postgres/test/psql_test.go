@@ -46,7 +46,8 @@ func TestCurrnecyPostgres(t *testing.T) {
 	err = db.PingContext(ctx)
 	assert.NoError(t, err)
 
-	_, err = db.ExecContext(ctx,
+	_, err = db.ExecContext(
+		ctx,
 		`CREATE TABLE exchange_rates (
 	id SERIAL PRIMARY KEY,
 	date DATE NOT NULL,
@@ -80,4 +81,69 @@ func TestCurrnecyPostgres(t *testing.T) {
 	assert.Equal(t, 1.0, resp2[0].Rate)
 	assert.Equal(t, 2.0, resp2[1].Rate)
 	assert.NoError(t, err)
+}
+
+func TestAuthPostgres(t *testing.T) {
+	ctx := context.Background()
+
+	req := testcontainers.ContainerRequest{
+		Image:        "postgres:latest",
+		ExposedPorts: []string{"5432/tcp"},
+		Env: map[string]string{
+			"POSTGRES_PASSWORD": "password",
+			"POSTGRES_USER":     "user",
+			"POSTGRES_DB":       "testdb",
+		},
+		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(5 * time.Second),
+	}
+
+	pgContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	assert.NoError(t, err)
+	defer pgContainer.Terminate(ctx)
+
+	host, _ := pgContainer.Host(ctx)
+	port, _ := pgContainer.MappedPort(ctx, "5432")
+
+	dsn := fmt.Sprintf("host=%s port=%s user=user password=password dbname=testdb sslmode=disable",
+		host, port.Port())
+	db, err := sql.Open("postgres", dsn)
+	assert.NoError(t, err)
+	defer db.Close()
+
+	err = db.PingContext(ctx)
+	assert.NoError(t, err)
+
+	_, err = db.ExecContext(
+		ctx,
+		`CREATE TABLE authentication (
+		login VARCHAR(20) PRIMARY KEY,
+		password VARCHAR(30) 
+		)`)
+	assert.NoError(t, err)
+
+	repo := postgres.AuthRepo{DB: db}
+
+	login := "user"
+	password := "password"
+	err = repo.AddUser(login, password)
+	assert.NoError(t, err)
+
+	check, err := repo.IsLoginExist(login)
+	assert.Equal(t, true, check)
+	assert.NoError(t, err)
+
+	check, err = repo.IsLoginExist("nigol")
+	assert.NoError(t, err)
+	assert.Equal(t, false, check)
+
+	check, err = repo.LogIn(login, password)
+	assert.NoError(t, err)
+	assert.Equal(t, true, check)
+
+	check, err = repo.LogIn("nigol", password)
+	assert.NoError(t, err)
+	assert.Equal(t, false, check)
 }
