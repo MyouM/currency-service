@@ -5,7 +5,7 @@ import (
 	"database/sql"
 )
 
-//go:generate mockgen -source=auth_psql.go -destination=mock/mock_auth_psql.go -package=test_postgres
+//go:generate mockgen -source=auth_psql.go -destination=mock/mock_auth_psql.go -package=mock_postgres
 
 type AuthRepo struct {
 	DB *sql.DB

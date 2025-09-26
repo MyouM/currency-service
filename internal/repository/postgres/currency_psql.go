@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-//go:generate mockgen -source=currency_psql.go -destination=mock/mock_currency_psql.go -package=test_postgres
+//go:generate mockgen -source=currency_psql.go -destination=mock/mock_currency_psql.go -package=mock_postgres
 
 type CurrencyRepo struct {
 	DB *sql.DB

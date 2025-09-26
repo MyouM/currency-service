@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"currency-service/internal/repository/postgres"
 	"fmt"
 	"net/http"
 )
@@ -15,10 +14,7 @@ func (hr HandlerRelations) KuberLivez() http.HandlerFunc {
 
 func (hr HandlerRelations) KuberReadyz() http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
-		errors := make([]error, 0, 3)
-		if _, _, err := postgres.NewDatabaseConnection(hr.Cfg.Database); err != nil {
-			errors = append(errors, err)
-		}
+		errors := make([]error, 0, 2)
 
 		if err := hr.Redis.Ping(); err != nil {
 			errors = append(errors, err)

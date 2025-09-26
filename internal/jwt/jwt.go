@@ -20,3 +20,7 @@ func MakeJWT(login, password string) (string, error) {
 	}
 	return tokenStr, nil
 }
+
+func GetJWTSecret() []byte {
+	return secret_key
+}

@@ -2,7 +2,7 @@
 // Source: currency_psql.go
 
 // Package test_postgres is a generated GoMock package.
-package test_postgres
+package mock_postgres
 
 import (
 	currpb "currency-service/internal/proto/currpb"

@@ -4,7 +4,7 @@ import (
 	"context"
 	"currency-service/internal/config"
 	"currency-service/internal/jwt"
-	kafkaCur "currency-service/internal/kafka"
+	"currency-service/internal/kafka"
 	log "currency-service/internal/logger"
 	"currency-service/internal/repository/postgres"
 	"encoding/json"
@@ -12,300 +12,154 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/segmentio/kafka-go"
 	"go.uber.org/zap"
 )
 
+//go:generate mockgen -source=auth.go -destination=mock/mock_auth.go -package=mock_auth
+
 var (
-	errForUser = errors.New("Auth service have some trouble, try later.")
+	errorForUser = errors.New("Auth service have some trouble, try later.")
 )
 
-type AuthRequest struct {
-	ID       string `json:"id"`
-	Login    string `json:"login"`
-	Password string `json:"password"`
+type AuthFuncs interface {
+	RegisterService(context.Context, []byte) error
+	LoginService(context.Context, []byte) error
+	LoginCheck() ([]byte, error)
+	RegisterCheck() ([]byte, error)
 }
 
-type AuthResponse struct {
-	Token string `json:"token"`
-	Error string `json:"error"`
+type AuthTools struct {
+	Repo     postgres.AuthPsqlFuncs
+	Req      kafka.AuthRequest
+	Producer kafka.ProducerFuncs
+	Consumer kafka.ConsumerFuncs
 }
 
 func StartAuthService(
 	sigCtx context.Context,
 	cfg *config.KafkaConfig,
-	repo postgres.AuthRepo) {
+	repo postgres.AuthPsqlFuncs) {
 	var (
+		req    kafka.AuthRequest
 		wg     sync.WaitGroup
 		logger = log.GetLogger()
+
+		consumer = kafka.NewConsumer(
+			cfg.BrokerHost,
+			kafka.GatewayAuthTopic,
+			kafka.GroupID)
+		producer = kafka.NewProducer(
+			cfg.BrokerHost,
+			kafka.AuthGatewayTopic)
 	)
-	registerReqReader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:  []string{cfg.BrokerHost},
-		Topic:    kafkaCur.RegisterRespTopic,
-		GroupID:  "auth-service-group",
-		MinBytes: 1,
-		MaxBytes: 10e6,
-	})
-
-	registerRespWriter := kafka.NewWriter(kafka.WriterConfig{
-		Brokers:  []string{cfg.BrokerHost},
-		Topic:    kafkaCur.RegisterReqTopic,
-		Balancer: &kafka.LeastBytes{},
-	})
-	loginReqReader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:  []string{cfg.BrokerHost},
-		Topic:    kafkaCur.LoginRespTopic,
-		GroupID:  "auth-service-group",
-		MinBytes: 1,
-		MaxBytes: 10e6,
-	})
-
-	loginRespWriter := kafka.NewWriter(kafka.WriterConfig{
-		Brokers:  []string{cfg.BrokerHost},
-		Topic:    kafkaCur.LoginReqTopic,
-		Balancer: &kafka.LeastBytes{},
-	})
-	defer registerReqReader.Close()
-	defer registerRespWriter.Close()
-	defer loginReqReader.Close()
-	defer loginRespWriter.Close()
+	defer consumer.Close()
+	defer producer.Close()
 
 	ctx, cancel := context.WithCancel(sigCtx)
 	defer cancel()
-	wg.Add(2)
-	go func() {
-		err := registerService(
-			ctx,
-			repo,
-			registerReqReader,
-			registerRespWriter)
+
+	for {
+		m, err := consumer.Listen(ctx)
 		if err != nil {
+			logger.Error("Kafka auth request error:", zap.Error(err))
 			cancel()
+			break
 		}
-		wg.Done()
-	}()
-	go func() {
-		err := loginService(
-			ctx,
-			repo,
-			loginReqReader,
-			loginRespWriter)
-		if err != nil {
-			cancel()
+		if err = json.Unmarshal(m.Value, &req); err != nil {
+			logger.Error("Unmarshal error:", zap.Error(err))
+			err := producer.Send(ctx, m.Key, makeMsg(req.Type, "", err.Error()))
+			if err != nil {
+				cancel()
+				logger.Error("Kafka error", zap.Error(err))
+				break
+			}
+			continue
 		}
-		wg.Done()
-	}()
+
+		tools := &AuthTools{
+			Repo:     repo,
+			Req:      req,
+			Producer: producer}
+		wg.Add(1)
+		switch req.Type {
+		case "register":
+			go func() {
+				err := tools.RegisterService(ctx, m.Key)
+				if err != nil {
+					logger.Error("Kafka error", zap.Error(err))
+					cancel()
+				}
+				wg.Done()
+			}()
+		case "login":
+			go func() {
+				err := tools.LoginService(ctx, m.Key)
+				if err != nil {
+					logger.Error("Kafka error", zap.Error(err))
+					cancel()
+				}
+				wg.Done()
+			}()
+		}
+
+	}
 	wg.Wait()
 	logger.Info("Auth service work done")
 }
 
-func loginService(
-	ctx context.Context,
-	repo postgres.AuthRepo,
-	loginReqReader *kafka.Reader,
-	loginRespWriter *kafka.Writer) error {
-
-	var (
-		logger = log.GetLogger()
-	)
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Info("Register service work over.")
-			return nil
-		default:
-			var req AuthRequest
-			m, err := loginReqReader.ReadMessage(ctx)
-			if err != nil {
-				logger.Error("Kafka auth request error:", zap.Error(err))
-				return err
-			}
-			if err = json.Unmarshal(m.Value, &req); err != nil {
-				logger.Error("Unmarshal error:", zap.Error(err))
-				kafkaErr := writeMessage(
-					req.ID,
-					"",
-					errForUser.Error(),
-					ctx,
-					loginRespWriter)
-				if kafkaErr != nil {
-					return kafkaErr
-				}
-				continue
-			}
-			success, err := repo.LogIn(req.Login, req.Password)
-			if err != nil {
-				logger.Error("Postgres error:", zap.Error(err))
-				kafkaErr := writeMessage(
-					req.ID,
-					"",
-					errForUser.Error(),
-					ctx,
-					loginRespWriter)
-				if kafkaErr != nil {
-					return kafkaErr
-				}
-				continue
-			}
-			if !success {
-				err = fmt.Errorf("User %s is not exist", req.Login)
-				kafkaErr := writeMessage(
-					req.ID,
-					"",
-					err.Error(),
-					ctx,
-					loginRespWriter)
-				if kafkaErr != nil {
-					return kafkaErr
-				}
-				continue
-			}
-			token, err := jwt.MakeJWT(req.Login, req.Password)
-			if err != nil {
-				logger.Error("JWT error:", zap.Error(err))
-				kafkaErr := writeMessage(
-					req.ID,
-					"",
-					errForUser.Error(),
-					ctx,
-					loginRespWriter)
-				if kafkaErr != nil {
-					return kafkaErr
-				}
-				continue
-			}
-			kafkaErr := writeMessage(
-				req.ID,
-				token,
-				"",
-				ctx,
-				loginRespWriter)
-			if kafkaErr != nil {
-				return kafkaErr
-			}
-			logger.Info("User logged in:", zap.String("User", req.Login))
-		}
-	}
-	return nil
-}
-
-func registerService(
-	ctx context.Context,
-	repo postgres.AuthRepo,
-	registerReqReader *kafka.Reader,
-	registerRespWriter *kafka.Writer) error {
-	logger := log.GetLogger()
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Info("Register service work over.")
-			return nil
-		default:
-			var req AuthRequest
-			m, err := registerReqReader.ReadMessage(ctx)
-			if err != nil {
-				logger.Error("Kafka auth request error:", zap.Error(err))
-				continue
-			}
-			if err = json.Unmarshal(m.Value, &req); err != nil {
-				logger.Error("Unmarshal error:", zap.Error(err))
-				kafkaErr := writeMessage(
-					req.ID,
-					"",
-					errForUser.Error(),
-					ctx,
-					registerRespWriter)
-				if kafkaErr != nil {
-					return kafkaErr
-				}
-				continue
-			}
-			exist, err := repo.IsLoginExist(req.Login)
-			if err != nil {
-				logger.Error("Postgres error:", zap.Error(err))
-				kafkaErr := writeMessage(
-					req.ID,
-					"",
-					errForUser.Error(),
-					ctx,
-					registerRespWriter)
-				if kafkaErr != nil {
-					return kafkaErr
-				}
-				continue
-			}
-			if exist {
-				err = fmt.Errorf("Login already in use")
-				kafkaErr := writeMessage(
-					req.ID,
-					"",
-					err.Error(),
-					ctx,
-					registerRespWriter)
-				if kafkaErr != nil {
-					return kafkaErr
-				}
-				continue
-			}
-			if err = repo.AddUser(req.Login, req.Password); err != nil {
-				logger.Error("Postgres error:", zap.Error(err))
-				kafkaErr := writeMessage(
-					req.ID,
-					"",
-					errForUser.Error(),
-					ctx,
-					registerRespWriter)
-				if kafkaErr != nil {
-					return kafkaErr
-				}
-				continue
-			}
-			token, err := jwt.MakeJWT(req.Login, req.Password)
-			if err != nil {
-				logger.Error("JWT error:", zap.Error(err))
-				kafkaErr := writeMessage(
-					req.ID,
-					"",
-					errForUser.Error(),
-					ctx,
-					registerRespWriter)
-				if kafkaErr != nil {
-					return kafkaErr
-				}
-				continue
-			}
-			kafkaErr := writeMessage(
-				req.ID,
-				token,
-				"",
-				ctx,
-				registerRespWriter)
-			if kafkaErr != nil {
-				return kafkaErr
-			}
-			logger.Info("Create new user:", zap.String("User", req.Login))
-		}
-	}
-	return nil
-}
-
-func writeMessage(
-	id, token string,
-	errorMsg string,
-	ctx context.Context,
-	writer *kafka.Writer) error {
-	logger := log.GetLogger()
-
-	message := fmt.Sprintf(`{"token":"%s","error":"%s"}`, token, errorMsg)
-	err := writer.WriteMessages(
-		ctx,
-		kafka.Message{
-			Key:   []byte(id),
-			Value: []byte(message),
-		})
+func (t *AuthTools) RegisterService(ctx context.Context, key []byte) error {
+	msg, err := t.RegisterCheck()
 	if err != nil {
-		logger.Error("Kafka respone writer error:", zap.Error(err))
-		return err
+		return t.Producer.Send(ctx, key, makeMsg(t.Req.Type, "", err.Error()))
 	}
-	return nil
+	return t.Producer.Send(ctx, key, msg)
+}
+
+func (t *AuthTools) LoginService(ctx context.Context, key []byte) error {
+	msg, err := t.LoginCheck()
+	if err != nil {
+		return t.Producer.Send(ctx, key, makeMsg(t.Req.Type, "", err.Error()))
+	}
+	return t.Producer.Send(ctx, key, msg)
+}
+
+func (t *AuthTools) LoginCheck() ([]byte, error) {
+	success, err := t.Repo.LogIn(t.Req.Login, t.Req.Password)
+	if err != nil {
+		return []byte{}, errorForUser
+	}
+	if !success {
+		err = fmt.Errorf("User %s is not exist", t.Req.Login)
+		return []byte{}, err
+	}
+
+	token, err := jwt.MakeJWT(t.Req.Login, t.Req.Password)
+	if err != nil {
+		return []byte{}, errorForUser
+	}
+	return makeMsg(t.Req.Type, token, ""), nil
+}
+
+func (t *AuthTools) RegisterCheck() ([]byte, error) {
+	exist, err := t.Repo.IsLoginExist(t.Req.Login)
+	if err != nil {
+		return []byte{}, errorForUser
+	}
+	if exist {
+		err = fmt.Errorf("Login already in use")
+		return []byte{}, err
+	}
+	if err = t.Repo.AddUser(t.Req.Login, t.Req.Password); err != nil {
+		return []byte{}, errorForUser
+	}
+	token, err := jwt.MakeJWT(t.Req.Login, t.Req.Password)
+	if err != nil {
+		return []byte{}, errorForUser
+	}
+	return makeMsg(t.Req.Type, token, ""), nil
+}
+
+func makeMsg(tp, tkn, err string) []byte {
+	msg := fmt.Sprintf(`{"type":"%s","token":"%s","error":"%s"}`, tp, tkn, err)
+	return []byte(msg)
 }

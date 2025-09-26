@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"currency-service/internal/config"
+	"currency-service/internal/kafka"
 	"currency-service/internal/repository/redis"
 	"fmt"
 	"net/http"
@@ -25,5 +27,19 @@ func Validate(rds redis.RedisFuncs, next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		next.ServeHTTP(w, req)
+	})
+}
+
+func KafkaInit(cfg *config.AppConfig, next func(kafka.ProducerFuncs, kafka.ConsumerFuncs) http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		consumer := kafka.NewConsumer(
+			cfg.Kafka.BrokerHost,
+			kafka.AuthGatewayTopic,
+			kafka.GroupID)
+		producer := kafka.NewProducer(
+			cfg.Kafka.BrokerHost,
+			kafka.GatewayAuthTopic)
+
+		next(producer, consumer).ServeHTTP(w, req)
 	})
 }
