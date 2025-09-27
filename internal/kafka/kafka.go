@@ -2,7 +2,6 @@ package kafka
 
 import (
 	"currency-service/internal/config"
-	"fmt"
 	"time"
 
 	"github.com/segmentio/kafka-go"
@@ -29,19 +28,7 @@ type AuthResponse struct {
 }
 
 func InitKafkaTopics(cfg *config.KafkaConfig) error {
-	conn, err := kafka.Dial("tcp", cfg.BrokerHost)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
-	controller, err := conn.Controller()
-	if err != nil {
-		return err
-	}
-	ctrlAddr := fmt.Sprintf("%s:%d", controller.Host, controller.Port)
-
-	ctrlConn, err := kafka.Dial("tcp", ctrlAddr)
+	ctrlConn, err := kafka.Dial("tcp", cfg.ControllerHost)
 	if err != nil {
 		return err
 	}

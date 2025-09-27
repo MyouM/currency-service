@@ -5,6 +5,7 @@ import (
 	"currency-service/internal/config"
 	handler "currency-service/internal/handler/gateway"
 	"currency-service/internal/logger"
+	"currency-service/internal/metrics"
 	"currency-service/internal/proto/currpb"
 	"currency-service/internal/repository/redis"
 	"fmt"
@@ -36,6 +37,9 @@ func main() {
 	//Инициализация логгирования
 	logger := logger.InitLogger()
 	defer logger.Sync()
+
+	//Инициализация метрик
+	metrics.InitPrometh()
 
 	//Подключение к Redis
 	_, err = redis.InitRedis(cfg.Redis)

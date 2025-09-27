@@ -5,12 +5,20 @@ import (
 )
 
 var (
-	grpcRequestTotal = prometheus.NewCounterVec(
+	GrpcRequestTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "grpc_request_total",
-			Help: "Total number of HTTP requests",
+			Help: "Total number of gRPC requests",
 		},
 		[]string{"path", "method", "status"},
+	)
+	GrpcRequestDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "grpc_request_duration_seconds",
+			Help:    "Histogram of request durations",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"path", "method"},
 	)
 )
 
@@ -18,12 +26,7 @@ type Prometh struct {
 	GrpcRequestTotal *prometheus.CounterVec
 }
 
-func InitPrometh() *Prometh {
-	prometh := Prometh{
-		GrpcRequestTotal: grpcRequestTotal,
-	}
-
-	prometheus.MustRegister(grpcRequestTotal)
-
-	return &prometh
+func InitPrometh() {
+	prometheus.MustRegister(GrpcRequestTotal)
+	prometheus.MustRegister(GrpcRequestDuration)
 }

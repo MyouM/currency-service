@@ -33,11 +33,11 @@ func Validate(rds redis.RedisFuncs, next http.HandlerFunc) http.HandlerFunc {
 func KafkaInit(cfg *config.AppConfig, next func(kafka.ProducerFuncs, kafka.ConsumerFuncs) http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		consumer := kafka.NewConsumer(
-			cfg.Kafka.BrokerHost,
+			cfg.Kafka.ControllerHost,
 			kafka.AuthGatewayTopic,
 			kafka.GroupID)
 		producer := kafka.NewProducer(
-			cfg.Kafka.BrokerHost,
+			cfg.Kafka.ControllerHost,
 			kafka.GatewayAuthTopic)
 
 		next(producer, consumer).ServeHTTP(w, req)
