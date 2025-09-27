@@ -4,7 +4,8 @@ import (
 	"currency-service/internal/config"
 	"currency-service/internal/kafka"
 	"currency-service/internal/logger"
-	middleware "currency-service/internal/middleware/auth"
+	midAuth "currency-service/internal/middleware/auth"
+	midMetric "currency-service/internal/middleware/metrics"
 	"currency-service/internal/proto/currpb"
 	redisCur "currency-service/internal/repository/redis"
 	"encoding/json"
@@ -12,6 +13,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
 
@@ -38,22 +40,25 @@ func GatewayHandlersInit(
 	}
 	router.HandleFunc(
 		"GET /currency/one/{date}",
-		middleware.Validate(
+		midAuth.Validate(
 			rltns.Redis,
-			rltns.GetOneCurrencyRate(grpcClient)))
+			midMetric.GrpcMetrics(
+				rltns.GetOneCurrencyRate(grpcClient))))
 	router.HandleFunc(
 		"GET /currency/period/{dates}",
-		middleware.Validate(
+		midAuth.Validate(
 			rltns.Redis,
-			rltns.GetIntervalCurrencyChanges(grpcClient)))
+			midMetric.GrpcMetrics(
+				rltns.GetIntervalCurrencyChanges(grpcClient))))
 	router.HandleFunc(
 		"POST /registration",
-		middleware.KafkaInit(conf, rltns.RegistrationHandler))
+		midAuth.KafkaInit(conf, rltns.RegistrationHandler))
 	router.HandleFunc(
 		"POST /login",
-		middleware.KafkaInit(conf, rltns.LoginHandler))
+		midAuth.KafkaInit(conf, rltns.LoginHandler))
 	router.HandleFunc("GET /livez", rltns.KuberLivez())
 	router.HandleFunc("GET /readyz", rltns.KuberReadyz())
+	router.Handle("/metrics", promhttp.Handler())
 }
 
 func (hr *HandlerRelations) LoginHandler(

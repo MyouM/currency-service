@@ -45,11 +45,11 @@ func StartAuthService(
 		logger = log.GetLogger()
 
 		consumer = kafka.NewConsumer(
-			cfg.BrokerHost,
+			cfg.ControllerHost,
 			kafka.GatewayAuthTopic,
 			kafka.GroupID)
 		producer = kafka.NewProducer(
-			cfg.BrokerHost,
+			cfg.ControllerHost,
 			kafka.AuthGatewayTopic)
 	)
 	defer consumer.Close()
@@ -59,6 +59,9 @@ func StartAuthService(
 	defer cancel()
 
 	for {
+		if ctx.Err() != nil {
+			break
+		}
 		m, err := consumer.Listen(ctx)
 		if err != nil {
 			logger.Error("Kafka auth request error:", zap.Error(err))

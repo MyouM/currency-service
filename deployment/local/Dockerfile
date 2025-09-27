@@ -6,6 +6,7 @@ ARG BUILD_TARGET
 RUN go build -o /app/bin/app $BUILD_TARGET
 
 FROM scratch
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /app/bin/app /
 COPY --from=builder /app/internal/config /internal/config
 ENTRYPOINT ["/app"]

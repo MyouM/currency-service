@@ -5,18 +5,15 @@ import (
 	"currency-service/internal/config"
 	handler "currency-service/internal/handler/currency"
 	"currency-service/internal/logger"
-	"currency-service/internal/metrics"
 	"currency-service/internal/migrations"
 	"currency-service/internal/proto/currpb"
 	"currency-service/internal/repository/postgres"
 	"currency-service/internal/worker"
 	"log"
 	"net"
-	"net/http"
 	"os/signal"
 	"syscall"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 )
 
@@ -43,16 +40,6 @@ func main() {
 	logger := logger.InitLogger()
 	defer logger.Sync()
 
-	//Инициализация Prometheus
-	promets := metrics.InitPrometh()
-	go func() {
-		http.Handle("/metrics", promhttp.Handler())
-		logger.Info("Prometheus server runing on port 8080...")
-		if err := http.ListenAndServe(":8080", nil); err != nil {
-			log.Fatalf("Error with Prometheus: %s", err)
-		}
-	}()
-
 	//Занимаем порт 8081
 	lis, err := net.Listen("tcp", ":8081")
 	if err != nil {
@@ -64,8 +51,7 @@ func main() {
 	currpb.RegisterCurrencyServiceServer(
 		grpcServer,
 		&handler.Server{
-			Psql:    repo,
-			Prometh: promets})
+			Psql: repo})
 
 	//Контекст, реагирующий на сигналы системы
 	sigShut, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

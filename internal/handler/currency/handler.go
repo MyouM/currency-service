@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"currency-service/internal/metrics"
 	"currency-service/internal/proto/currpb"
 	"currency-service/internal/repository/postgres"
 	"time"
@@ -10,8 +9,7 @@ import (
 
 type Server struct {
 	currpb.UnimplementedCurrencyServiceServer
-	Prometh *metrics.Prometh
-	Psql    postgres.CurrencyPsqlFuncs
+	Psql postgres.CurrencyPsqlFuncs
 }
 
 func (s *Server) GetSpecificCurrency(

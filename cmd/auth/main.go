@@ -10,6 +10,7 @@ import (
 	"currency-service/internal/repository/postgres"
 	"log"
 	"os/signal"
+	"sync"
 	"syscall"
 )
 
@@ -48,6 +49,12 @@ func main() {
 
 	//Запуск сервиса авторизации
 	logger.Info("Auth service start workinng.")
-	auth.StartAuthService(sigShut, cfg.Kafka, repo)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		auth.StartAuthService(sigShut, cfg.Kafka, repo)
+		wg.Done()
+	}()
 	<-sigShut.Done()
+	wg.Wait()
 }
