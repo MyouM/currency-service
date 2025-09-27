@@ -1,25 +1,25 @@
 package handler
 
 import (
-	"context"
-	"currency-service/internal/auth"
 	"currency-service/internal/config"
-	kafkaCur "currency-service/internal/kafka"
+	"currency-service/internal/kafka"
 	"currency-service/internal/logger"
 	middleware "currency-service/internal/middleware/auth"
 	"currency-service/internal/proto/currpb"
-	"currency-service/internal/repository/redis"
+	redisCur "currency-service/internal/repository/redis"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
-	"github.com/segmentio/kafka-go"
 	"go.uber.org/zap"
 )
 
-var cfg *config.AppConfig
+type HandlerRelations struct {
+	Cfg   *config.AppConfig
+	Log   *zap.Logger
+	Redis redisCur.RedisFuncs
+}
 
 type User struct {
 	Login    string `json:"login"`
@@ -31,216 +31,195 @@ func GatewayHandlersInit(
 	conf *config.AppConfig,
 	grpcClient currpb.CurrencyServiceClient) {
 
-	cfg = conf
+	rltns := &HandlerRelations{
+		Cfg:   conf,
+		Log:   logger.GetLogger(),
+		Redis: redisCur.GetRedisClient(),
+	}
 	router.HandleFunc(
 		"GET /currency/one/{date}",
-		middleware.Validate(getOneCurrencyRate(grpcClient)))
+		middleware.Validate(
+			rltns.Redis,
+			rltns.GetOneCurrencyRate(grpcClient)))
 	router.HandleFunc(
 		"GET /currency/period/{dates}",
-		middleware.Validate(getIntervalCurrencyChanges(grpcClient)))
+		middleware.Validate(
+			rltns.Redis,
+			rltns.GetIntervalCurrencyChanges(grpcClient)))
 	router.HandleFunc(
 		"POST /registration",
-		registrationHandler)
+		middleware.KafkaInit(conf, rltns.RegistrationHandler))
 	router.HandleFunc(
 		"POST /login",
-		loginHandler)
+		middleware.KafkaInit(conf, rltns.LoginHandler))
+	router.HandleFunc("GET /livez", rltns.KuberLivez())
+	router.HandleFunc("GET /readyz", rltns.KuberReadyz())
 }
 
-func loginHandler(w http.ResponseWriter, req *http.Request) {
-	var (
-		user           User
-		authResp       auth.AuthResponse
-		kafkaKey       = "login-gateway"
-		logger         = logger.GetLogger()
-		gwayRespWriter = kafka.NewWriter(kafka.WriterConfig{
-			Brokers:  []string{cfg.Kafka.BrokerHost},
-			Topic:    kafkaCur.LoginRespTopic,
-			Balancer: &kafka.LeastBytes{},
-		})
-		gwayReqReader = kafka.NewReader(kafka.ReaderConfig{
-			Brokers:  []string{cfg.Kafka.BrokerHost},
-			Topic:    kafkaCur.LoginReqTopic,
-			MinBytes: 1,
-			MaxBytes: 10e6,
-		})
-	)
-	defer gwayRespWriter.Close()
-	defer gwayReqReader.Close()
+func (hr *HandlerRelations) LoginHandler(
+	producer kafka.ProducerFuncs,
+	consumer kafka.ConsumerFuncs) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		var (
+			user     kafka.AuthRequest
+			authResp kafka.AuthResponse
+		)
+		defer consumer.Close()
+		defer producer.Close()
 
-	dec := json.NewDecoder(req.Body)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&user); err != nil {
-		logger.Error("Decode error:", zap.Error(err))
-		http.Error(
-			w,
-			"Somethings gone wrong",
-			http.StatusBadRequest)
-		return
-	}
-	logger.Info("Log in operation started")
+		dec := json.NewDecoder(req.Body)
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&user); err != nil {
+			hr.Log.Error("Decode error:", zap.Error(err))
+			http.Error(
+				w,
+				"Somethings gone wrong",
+				http.StatusBadRequest)
+			return
+		}
 
-	request := fmt.Sprintf(
-		`{"id":"%s","login":"%s","password":"%s"}`,
-		kafkaKey,
-		user.Login,
-		user.Password)
-	err := gwayRespWriter.WriteMessages(
-		context.Background(),
-		kafka.Message{
-			Key:   []byte(kafkaKey),
-			Value: []byte(request),
-		})
-	if err != nil {
-		logger.Error("Kafka error:", zap.Error(err))
-		http.Error(
-			w,
-			"Somethings gone wrong",
-			http.StatusBadRequest)
-		return
-	}
+		value := fmt.Sprintf(
+			`{"type":"%s","login":"%s","password":"%s"}`,
+			"login",
+			user.Login,
+			user.Password)
+		err := producer.Send(req.Context(), []byte(user.Login), []byte(value))
+		if err != nil {
+			hr.Log.Error("Kafka error:", zap.Error(err))
+			http.Error(
+				w,
+				"Somethings gone wrong",
+				http.StatusBadRequest)
+			return
+		}
 
-	msg, err := gwayReqReader.ReadMessage(context.Background())
-	if err != nil {
-		logger.Error("Kafka error:", zap.Error(err))
-		http.Error(
-			w,
-			"Somethings gone wrong",
-			http.StatusBadRequest)
-		return
-	}
+		msg, err := consumer.Listen(req.Context())
+		if err != nil {
+			hr.Log.Error("Kafka error:", zap.Error(err))
+			http.Error(
+				w,
+				"Somethings gone wrong",
+				http.StatusBadRequest)
+			return
+		}
 
-	if err = json.Unmarshal(msg.Value, &authResp); err != nil {
-		logger.Error("Unmarshal error:", zap.Error(err))
-		http.Error(
-			w,
-			"Somethings gone wrong",
-			http.StatusBadRequest)
-		return
-	}
+		if err = json.Unmarshal(msg.Value, &authResp); err != nil {
+			hr.Log.Error("Unmarshal error:", zap.Error(err))
+			http.Error(
+				w,
+				"Somethings gone wrong",
+				http.StatusBadRequest)
+			return
+		}
 
-	if authResp.Error != "" {
-		logger.Error("Auth error:", zap.String("", authResp.Error))
-		http.Error(
-			w,
-			fmt.Sprintf("Error: %s", authResp.Error),
-			http.StatusBadRequest)
-		return
-	}
+		if authResp.Error != "" {
+			hr.Log.Warn("Auth error:", zap.String("", authResp.Error))
+			http.Error(
+				w,
+				fmt.Sprintf("Error: %s", authResp.Error),
+				http.StatusBadRequest)
+			return
+		}
 
-	if err = redis.SetToken(authResp.Token); err != nil {
-		logger.Error("Redis error", zap.Error(err))
-		http.Error(
-			w,
-			fmt.Sprint("Registration done, but token is not set"),
-			http.StatusInternalServerError)
-		return
+		if err = hr.Redis.SetToken(authResp.Token); err != nil {
+			hr.Log.Error("Redis error", zap.Error(err))
+			http.Error(
+				w,
+				"Somethings gone wrong",
+				http.StatusInternalServerError)
+			return
+		}
+		hr.Log.Info("User logged in", zap.String("Login", user.Login))
+		fmt.Fprintf(w, "Token: %s", authResp.Token)
 	}
-	logger.Info("User logged in", zap.String("Login", user.Login))
-	fmt.Fprintf(w, "Token: %s", authResp.Token)
 }
 
-func registrationHandler(w http.ResponseWriter, req *http.Request) {
-	var (
-		user           User
-		authResp       auth.AuthResponse
-		logger         = logger.GetLogger()
-		kafkaKey       = "register-gateway"
-		gwayRespWriter = kafka.NewWriter(kafka.WriterConfig{
-			Brokers:  []string{cfg.Kafka.BrokerHost},
-			Topic:    kafkaCur.RegisterRespTopic,
-			Balancer: &kafka.LeastBytes{},
-		})
-		gwayReqReader = kafka.NewReader(kafka.ReaderConfig{
-			Brokers:  []string{cfg.Kafka.BrokerHost},
-			Topic:    kafkaCur.RegisterReqTopic,
-			MinBytes: 1,
-			MaxBytes: 10e6,
-		})
-	)
-	defer gwayRespWriter.Close()
-	defer gwayReqReader.Close()
+func (hr *HandlerRelations) RegistrationHandler(
+	producer kafka.ProducerFuncs,
+	consumer kafka.ConsumerFuncs) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		var (
+			user     kafka.AuthRequest
+			authResp kafka.AuthResponse
+		)
+		defer consumer.Close()
+		defer producer.Close()
 
-	dec := json.NewDecoder(req.Body)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&user); err != nil {
-		logger.Error("Decode error:", zap.Error(err))
-		http.Error(
-			w,
-			"Somethings gone wrong",
-			http.StatusBadRequest)
-		return
-	}
-	logger.Info("Registration operation started")
+		dec := json.NewDecoder(req.Body)
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&user); err != nil {
+			hr.Log.Error("Decode error:", zap.Error(err))
+			http.Error(
+				w,
+				"Somethings gone wrong",
+				http.StatusBadRequest)
+			return
+		}
+		hr.Log.Info("Registration operation started")
 
-	request := fmt.Sprintf(
-		`{"id":"%s","login":"%s","password":"%s"}`,
-		kafkaKey,
-		user.Login,
-		user.Password)
-	err := gwayRespWriter.WriteMessages(
-		context.Background(),
-		kafka.Message{
-			Key:   []byte(kafkaKey),
-			Value: []byte(request),
-		})
-	if err != nil {
-		logger.Error("Kafka error:", zap.Error(err))
-		http.Error(
-			w,
-			"Somethings gone wrong",
-			http.StatusBadRequest)
-		return
-	}
+		value := fmt.Sprintf(
+			`{"type":"%s","login":"%s","password":"%s"}`,
+			"register",
+			user.Login,
+			user.Password)
+		err := producer.Send(req.Context(), []byte(user.Login), []byte(value))
+		if err != nil {
+			hr.Log.Error("Kafka error:", zap.Error(err))
+			http.Error(
+				w,
+				"Somethings gone wrong",
+				http.StatusBadRequest)
+			return
+		}
 
-	msg, err := gwayReqReader.ReadMessage(context.Background())
-	if err != nil {
-		logger.Error("Kafka error:", zap.Error(err))
-		http.Error(
-			w,
-			"Somethings gone wrong",
-			http.StatusBadRequest)
-		return
-	}
+		msg, err := consumer.Listen(req.Context())
+		if err != nil {
+			hr.Log.Error("Kafka error:", zap.Error(err))
+			http.Error(
+				w,
+				"Somethings gone wrong",
+				http.StatusBadRequest)
+			return
+		}
 
-	if err = json.Unmarshal(msg.Value, &authResp); err != nil {
-		logger.Error("Unmarshal error:", zap.Error(err))
-		http.Error(
-			w,
-			"Somethings gone wrong",
-			http.StatusBadRequest)
-		return
-	}
+		if err = json.Unmarshal(msg.Value, &authResp); err != nil {
+			hr.Log.Error("Unmarshal error:", zap.Error(err))
+			http.Error(
+				w,
+				"Somethings gone wrong",
+				http.StatusBadRequest)
+			return
+		}
 
-	if authResp.Error != "" {
-		logger.Error("Auth error:", zap.String("", authResp.Error))
-		http.Error(
-			w,
-			fmt.Sprintf("Error: %s", authResp.Error),
-			http.StatusBadRequest)
-		return
-	}
+		if authResp.Error != "" {
+			hr.Log.Warn("Auth error:", zap.String("", authResp.Error))
+			http.Error(
+				w,
+				fmt.Sprintf("Error: %s", authResp.Error),
+				http.StatusBadRequest)
+			return
+		}
 
-	if err = redis.SetToken(authResp.Token); err != nil {
-		logger.Error("Redis error", zap.Error(err))
-		http.Error(
-			w,
-			fmt.Sprint("Registration done, but token is not set"),
-			http.StatusInternalServerError)
-		return
+		if err = hr.Redis.SetToken(authResp.Token); err != nil {
+			hr.Log.Error("Redis error", zap.Error(err))
+			http.Error(
+				w,
+				fmt.Sprint("Registration done, but token is not set"),
+				http.StatusInternalServerError)
+			return
+		}
+		hr.Log.Info("New registration", zap.String("Login", user.Login))
+		fmt.Fprintf(w, "Token: %s", authResp.Token)
 	}
-	logger.Info("New registration", zap.String("Login", user.Login))
-	fmt.Fprintf(w, "Token: %s", authResp.Token)
 }
 
-func getIntervalCurrencyChanges(grpcClient currpb.CurrencyServiceClient) http.HandlerFunc {
+func (hr *HandlerRelations) GetIntervalCurrencyChanges(grpcClient currpb.CurrencyServiceClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		dts := req.PathValue("dates")
-		ctx, cancel := context.WithTimeout(req.Context(), 6*time.Second)
-		defer cancel()
 
 		dates := strings.Split(dts, "-")
 		resp, err := grpcClient.GetIntervalCurrency(
-			ctx,
+			req.Context(),
 			&currpb.ClientIntervalRequest{
 				DateBegin: dates[0],
 				DateEnd:   dates[1],
@@ -254,20 +233,18 @@ func getIntervalCurrencyChanges(grpcClient currpb.CurrencyServiceClient) http.Ha
 		}
 		currRates := resp.GetRates()
 		for _, rate := range currRates {
-			fmt.Fprintf(w, "%v, %v\n", rate.Date, rate.Rate)
+			fmt.Fprintf(w, "%v, %f\n", rate.Date, rate.Rate)
 		}
 
 	}
 }
 
-func getOneCurrencyRate(grpcClient currpb.CurrencyServiceClient) http.HandlerFunc {
+func (hr *HandlerRelations) GetOneCurrencyRate(grpcClient currpb.CurrencyServiceClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		date := req.PathValue("date")
-		ctx, cancel := context.WithTimeout(req.Context(), 6*time.Second)
-		defer cancel()
 
 		resp, err := grpcClient.GetSpecificCurrency(
-			ctx,
+			req.Context(),
 			&currpb.ClientSpecRequest{
 				Date: date,
 			})
@@ -279,6 +256,6 @@ func getOneCurrencyRate(grpcClient currpb.CurrencyServiceClient) http.HandlerFun
 			return
 		}
 
-		fmt.Fprintf(w, "OK: %v\n", resp.GetCurrency())
+		fmt.Fprintf(w, "OK: %f\n", resp.GetCurrency())
 	}
 }

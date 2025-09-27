@@ -9,17 +9,24 @@ import (
 )
 
 const (
-	RegisterReqTopic  = "registration-request"
-	RegisterRespTopic = "registration-response"
-	LoginReqTopic     = "login-request"
-	LoginRespTopic    = "login-response"
+	GroupID          = "auth-gateway-work"
+	AuthGatewayTopic = "auth-gateway"
+	GatewayAuthTopic = "gateway-Aauth"
 )
 
-var topics = []string{
-	RegisterReqTopic,
-	RegisterRespTopic,
-	LoginReqTopic,
-	LoginRespTopic}
+var topics = []string{AuthGatewayTopic, GatewayAuthTopic}
+
+type AuthRequest struct {
+	Type     string `json:"type"`
+	Login    string `json:"login"`
+	Password string `json:"password"`
+}
+
+type AuthResponse struct {
+	Type  string `json:"type"`
+	Token string `json:"token"`
+	Error string `json:"error"`
+}
 
 func InitKafkaTopics(cfg *config.KafkaConfig) error {
 	conn, err := kafka.Dial("tcp", cfg.BrokerHost)

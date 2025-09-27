@@ -8,10 +8,13 @@ package currpb
 
 import (
 	context "context"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
 )
+
+//go:generate mockgen -source=currency_grpc.pb.go -destination=mock_currency_grpc_pb.go -package=test_grpc
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
